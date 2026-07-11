@@ -105,6 +105,15 @@ def run_pass(opts):
         if missing:
             log_warn(f"not found on Spotify: {', '.join(sorted(missing))}", indent="  ")
 
+    if opts.refresh_local:
+        if not opts.download_dir:
+            log_warn("--refresh-local needs a download dir (set DOWNLOAD_DIR or --download-dir)", indent="  ")
+            return
+        from . import downloads
+
+        downloads.refresh(sp, selected, opts.download_dir)
+        return
+
     targets = build_targets(opts)
     if not targets:
         log_warn("no mirror targets configured (set Apple tokens and/or YouTube Music auth)", indent="  ")

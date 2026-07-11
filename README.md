@@ -268,6 +268,14 @@ dir and both the tracks and the playlists appear, staying updated every pass:
 Spotify **date-added order, newest at the top** — so Jellyfin shows your latest
 additions first, like Spotify. Set `LOCAL_MIRROR_ORDER=oldest` to flip it. Each
 file's mtime is also stamped to its added-at date (Date-Modified sort matches).
+It's regenerated at the end of each `--execute` pass, *after* that playlist's
+download finishes — so on a big first download it appears per-playlist as each
+completes. To rebuild the `.m3u8` / covers / mtimes immediately from files you
+already have, without downloading or syncing:
+
+```bash
+uv run main.py --refresh-local        # fast; no spotDL, no Apple/YT
+```
 
 **Resumable & incremental.** spotDL `sync` only downloads what's missing —
 already-downloaded files are skipped (`--overwrite skip`), tracks removed from

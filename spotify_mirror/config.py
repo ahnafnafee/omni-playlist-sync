@@ -51,6 +51,7 @@ class Options:
     storefront: str
     cache_file: str
     song_cache_file: str
+    refresh_local: bool = False
 
 
 def parse_args(argv=None):
@@ -70,6 +71,9 @@ def parse_args(argv=None):
                    help=f"Per-playlist additions cap per pass; the rest continue next pass (default: {DEFAULT_MAX_ADDS}).")
     p.add_argument("--download-dir", default=os.getenv("DOWNLOAD_DIR", ""),
                    help="Also mirror the paired playlists to local audio files under this folder (requires --execute).")
+    p.add_argument("--refresh-local", action="store_true",
+                   help="Only rebuild local playlist files (m3u, covers, mtimes) from already-downloaded "
+                        "audio — no spotDL download, no Apple/YT sync. Fast.")
     p.add_argument("--storefront", default=os.getenv("APPLE_STOREFRONT", DEFAULT_STOREFRONT),
                    help=f"Apple catalog storefront (default: {DEFAULT_STOREFRONT}).")
     p.add_argument("--cache-file", default=os.getenv("APPLE_CACHE_FILE", DEFAULT_CACHE_FILE),
@@ -86,4 +90,5 @@ def parse_args(argv=None):
         execute=a.execute, loop=a.loop, interval_s=parse_interval(a.interval), playlists=a.playlists,
         max_removals=a.max_removals, max_adds=a.max_adds, download_dir=a.download_dir,
         storefront=a.storefront, cache_file=a.cache_file, song_cache_file=a.song_cache_file,
+        refresh_local=a.refresh_local,
     )

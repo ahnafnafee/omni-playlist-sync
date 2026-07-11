@@ -264,6 +264,47 @@ def _sync_one(sp, playlist, folder, timeout_s):
                 f"  (in {fmt_secs(time.monotonic() - started)})", tag="local")
 
 
+def _folder_for(base, playlist, used):
+    name = playlist.get("name") or playlist.get("id", "playlist")
+    folder_name = sanitize_folder(name)
+    if folder_name.casefold() in used:  # same-named playlists must not collide
+        folder_name = f"{folder_name} [{str(playlist.get('id', ''))[:8]}]"
+    used.add(folder_name.casefold())
+    return base / folder_name
+
+
+def refresh(sp, spotify_playlists, download_dir):
+    """Rebuild covers, mtimes and the newest-first m3u from ALREADY-downloaded
+    files — no spotDL, no mirrors. For when you just want the playlist files
+    regenerated. Never raises out."""
+    try:
+        if importlib.util.find_spec("mutagen") is None:
+            log_note("refresh skipped: mutagen not installed (uv sync --extra download)", tag="local")
+            return
+        base = Path(download_dir)
+        if not base.exists():
+            log_note(f"refresh skipped: {download_dir} does not exist", tag="local")
+            return
+        newest_first = os.getenv("LOCAL_MIRROR_ORDER", "newest").strip().lower() != "oldest"
+        log_section("Refresh local playlists", f"{len(spotify_playlists)} playlist(s) -> {download_dir}", tag="local")
+        used = set()
+        for playlist in spotify_playlists:
+            name = playlist.get("name") or playlist.get("id", "playlist")
+            folder = _folder_for(base, playlist, used)
+            if not folder.exists():
+                log_note(f"'{name}': no download folder yet - skipped", tag="local")
+                continue
+            try:
+                save_cover(playlist, folder)
+                stamped, _ = finalize_folder(folder, read_tracks(sp, playlist["id"]), newest_first)
+                order = "newest-first" if newest_first else "oldest-first"
+                log_summary(f"{name}: m3u {order}, {stamped} date-stamped", tag="local")
+            except Exception as e:
+                log_warn(f"'{name}': {e!r}", tag="local")
+    except Exception as e:
+        log_warn(f"refresh failed: {e!r}", tag="local")
+
+
 def run(sp, spotify_playlists, download_dir):
     """Never raises out; logs one skip line if spotdl/ffmpeg aren't set up."""
     try:
@@ -282,12 +323,8 @@ def run(sp, spotify_playlists, download_dir):
         used = set()
         for playlist in spotify_playlists:
             name = playlist.get("name") or playlist.get("id", "playlist")
-            folder_name = sanitize_folder(name)
-            if folder_name.casefold() in used:  # same-named playlists must not share a sync file
-                folder_name = f"{folder_name} [{str(playlist.get('id', ''))[:8]}]"
-            used.add(folder_name.casefold())
             try:
-                _sync_one(sp, playlist, base / folder_name, timeout_s)
+                _sync_one(sp, playlist, _folder_for(base, playlist, used), timeout_s)
             except Exception as e:
                 log_warn(f"'{name}': {e!r}", tag="local")
     except Exception as e:
