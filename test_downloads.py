@@ -77,12 +77,16 @@ def test_build_download_cmd():
     assert cmd[cmd.index("--overwrite") + 1] == "skip" and "--m3u" not in cmd
     ai = cmd.index("--audio")
     assert cmd[ai + 1:ai + 3] == ["youtube-music", "youtube"]  # YT fallback for OST/instrumentals
-    os.environ["LOCAL_MIRROR_FORMAT"] = "flac"
+    os.environ.update({"LOCAL_MIRROR_FORMAT": "flac", "LOCAL_MIRROR_BITRATE": "320k",
+                       "LOCAL_MIRROR_COOKIE_FILE": "/c.txt"})
     try:
         cmd = lm.build_download_cmd(["x", "y"])
     finally:
-        del os.environ["LOCAL_MIRROR_FORMAT"]
+        for k in ("LOCAL_MIRROR_FORMAT", "LOCAL_MIRROR_BITRATE", "LOCAL_MIRROR_COOKIE_FILE"):
+            del os.environ[k]
     assert "x" in cmd and "y" in cmd and cmd[cmd.index("--format") + 1] == "flac"
+    assert cmd[cmd.index("--bitrate") + 1] == "320k"
+    assert cmd[cmd.index("--cookie-file") + 1] == "/c.txt"
 
 
 def test_stream_parsing():

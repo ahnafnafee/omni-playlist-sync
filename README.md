@@ -312,6 +312,14 @@ run orphans old files), `LOCAL_MIRROR_TIMEOUT` (seconds per playlist per pass,
 default 3600), `LOCAL_MIRROR_ORDER` (newest/oldest),
 `LOCAL_MIRROR_AUDIO_PROVIDERS`, `LOCAL_MIRROR_VERBOSE=1` (echo all spotDL output).
 
+**Audio quality.** The source is YouTube, so without a logged-in YT Music
+**Premium** account the ceiling is ~128–160 kbps — no `--bitrate` can add
+quality the source lacks. For better results: `LOCAL_MIRROR_FORMAT=opus` keeps
+YouTube's native ~160 kbps stream without an mp3 re-encode; and for genuine
+256 kbps AAC, export a YT Music Premium cookie file (yt-dlp format) and set
+`LOCAL_MIRROR_COOKIE_FILE=/path/cookies.txt`. `LOCAL_MIRROR_BITRATE` (e.g.
+`320k`, or `disable` to copy the source) tunes the transcode.
+
 **Playlist covers in Jellyfin.** Jellyfin *ignores* any cover file next to an
 m3u playlist — it auto-tiles the tracks' embedded art. The only way to set a
 real playlist cover is Jellyfin's API, so this is opt-in: set `JELLYFIN_URL`

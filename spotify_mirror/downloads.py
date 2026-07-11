@@ -377,6 +377,12 @@ def build_download_cmd(queries):
     audio_format = os.getenv("LOCAL_MIRROR_FORMAT")
     if audio_format:
         cmd += ["--format", audio_format]
+    bitrate = os.getenv("LOCAL_MIRROR_BITRATE")
+    if bitrate:  # e.g. 320k, or "disable" to copy the source without re-encoding
+        cmd += ["--bitrate", bitrate]
+    cookie_file = os.getenv("LOCAL_MIRROR_COOKIE_FILE")
+    if cookie_file:  # a YT Music Premium cookie file unlocks 256 kbps AAC
+        cmd += ["--cookie-file", cookie_file]
     return cmd
 
 
