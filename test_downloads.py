@@ -110,6 +110,48 @@ def test_stream_parsing():
     assert (downloaded, skipped, code) == (1, 1, 0)
 
 
+def test_fill_missing_tags():
+    track = {"name": "T", "artist": "A, B", "album": "Alb", "isrc": "US1"}
+    audio = {}
+    assert lm._fill_missing(audio, track) is True
+    assert audio["title"] == ["T"] and audio["artist"] == ["A, B"] and audio["album"] == ["Alb"]
+    assert audio["albumartist"] == ["A"] and audio["isrc"] == ["US1"]  # albumartist = primary artist
+    existing = {"title": ["Keep"], "isrc": ["OLD"]}
+    lm._fill_missing(existing, track)
+    assert existing["title"] == ["Keep"] and existing["isrc"] == ["OLD"]  # never overwritten
+    full = {k: ["x"] for k in ("title", "artist", "album", "albumartist", "isrc")}
+    assert lm._fill_missing(full, track) is False  # nothing to add
+
+
+def test_match_track():
+    def tk(name, artist, isrc):
+        keys = set()
+        title = lm._norm(name)
+        for a in {lm._norm(artist.split(",")[0]), lm._norm(artist)}:
+            if a:
+                keys.add(f"{a}|{title}")
+        return {"name": name, "artist": artist, "isrc": isrc, "keys": keys}
+
+    t1, t2 = tk("Song One", "Alpha", "US1"), tk("Song Two", "Beta, Gamma", None)
+    by_isrc, by_key, by_stem = lm._track_lookups([t1, t2])
+    assert lm._match_track(["us1 "], "", [], "", by_isrc, by_key, by_stem) is t1  # ISRC
+    assert lm._match_track([], "Song Two", ["Beta"], "", by_isrc, by_key, by_stem) is t2  # artist|title
+    assert lm._match_track([], "", [], "Alpha - Song One", by_isrc, by_key, by_stem) is t1  # filename stem
+    assert lm._match_track([], "Nope", ["X"], "x - y", by_isrc, by_key, by_stem) is None
+
+
+def test_fetch_image_cache():
+    calls, real = [], lm.requests.get
+    lm.requests.get = lambda *a, **k: (calls.append(1), types.SimpleNamespace(content=b"IMG", raise_for_status=lambda: None))[1]
+    try:
+        cache = {}
+        assert lm._fetch_image("http://x/a.jpg", cache) == b"IMG"
+        assert lm._fetch_image("http://x/a.jpg", cache) == b"IMG"  # served from cache
+    finally:
+        lm.requests.get = real
+    assert len(calls) == 1
+
+
 def test_save_cover():
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)

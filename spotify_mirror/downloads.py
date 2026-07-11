@@ -66,8 +66,12 @@ def read_tracks(sp, playlist_id):
                 for artist in {_norm(artists[0] if artists else ""), _norm(" ".join(artists))}:
                     if artist:
                         keys.add(f"{artist}|{title}")
+            album = track.get("album") or {}
+            images = album.get("images") or []
             out.append({"when": when, "isrc": isrc.strip().upper() if isrc else None, "keys": keys,
-                        "name": name, "artist": ", ".join(artists), "duration_ms": track.get("duration_ms")})
+                        "name": name, "artist": ", ".join(artists), "album": album.get("name"),
+                        "image": images[0].get("url") if images else None,  # largest first
+                        "duration_ms": track.get("duration_ms")})
         prev = page
         page = spotify._retry(lambda: sp.next(prev), "tracks page") if page.get("next") else None
     return out
@@ -99,6 +103,112 @@ def match_added_at(isrcs, title, raw_artists, by_isrc, by_key):
     return None
 
 
+def _track_lookups(tracks):
+    """Track objects keyed by ISRC, artist|title, and filename-stem — for
+    backfilling tags onto files, including ones spotDL tagged poorly (matched by
+    its '{artists} - {title}' filename when the file itself has no tags)."""
+    by_isrc, by_key, by_stem = {}, {}, {}
+    for t in tracks:
+        if t.get("isrc"):
+            by_isrc.setdefault(t["isrc"], t)
+        for k in t["keys"]:
+            by_key.setdefault(k, t)
+        joined, title = t["artist"], t["name"]
+        primary = joined.split(",")[0].strip()
+        for combo in {_norm(f"{primary} - {title}"), _norm(f"{joined} - {title}")}:
+            if combo:
+                by_stem.setdefault(combo, t)
+    return by_isrc, by_key, by_stem
+
+
+def _match_track(isrcs, title, artists, stem, by_isrc, by_key, by_stem):
+    for i in isrcs:
+        t = by_isrc.get(str(i).strip().upper())
+        if t:
+            return t
+    nt = _norm(title)
+    if nt:
+        for raw in artists:
+            for a in (_norm(raw), _norm(re.split(r"[,;/]", raw)[0])):
+                t = by_key.get(f"{a}|{nt}")
+                if t:
+                    return t
+    return by_stem.get(_norm(stem))  # untagged file -> match by spotDL's filename
+
+
+def _fill_missing(audio, track):
+    """Set Jellyfin-relevant tags that are MISSING; never overwrite what spotDL
+    already wrote. Returns True if anything was added."""
+    primary = (track.get("artist") or "").split(",")[0].strip()
+    wanted = {
+        "title": track.get("name"),
+        "artist": track.get("artist"),
+        "album": track.get("album"),
+        "albumartist": primary or None,
+        "isrc": track.get("isrc"),
+    }
+    changed = False
+    for key, value in wanted.items():
+        if value and not audio.get(key):
+            try:
+                audio[key] = [value]
+                changed = True
+            except (KeyError, ValueError, TypeError):
+                pass  # tag unsupported for this file format
+    return changed
+
+
+def _fetch_image(url, cache):
+    if url not in cache:
+        try:
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            cache[url] = r.content
+        except Exception:
+            cache[url] = None
+    return cache[url]
+
+
+def _embed_cover(path, data):
+    """Embed cover art if the file has none (mp3/flac/m4a). Returns True if
+    added. Never overwrites art spotDL already embedded; other formats rely on
+    the album-folder cover.jpg instead."""
+    ext = path.suffix.lower()
+    try:
+        if ext == ".mp3":
+            from mutagen.id3 import APIC, ID3, ID3NoHeaderError
+            try:
+                tags = ID3(path)
+            except ID3NoHeaderError:
+                tags = ID3()
+            if tags.getall("APIC"):
+                return False
+            tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=data))
+            tags.save(path)
+            return True
+        if ext == ".flac":
+            from mutagen.flac import FLAC, Picture
+            f = FLAC(path)
+            if f.pictures:
+                return False
+            pic = Picture()
+            pic.type, pic.mime, pic.data = 3, "image/jpeg", data
+            f.add_picture(pic)
+            f.save()
+            return True
+        if ext in (".m4a", ".mp4"):
+            from mutagen.mp4 import MP4, MP4Cover
+            f = MP4(path)
+            if f.get("covr"):
+                return False
+            f["covr"] = [MP4Cover(data, imageformat=MP4Cover.FORMAT_JPEG)]
+            f.save()
+            return True
+    except Exception:
+        return False
+    return False
+
+
 def build_m3u(tracks, file_by_isrc, file_by_key, all_rels, newest_first=True):
     """m3u8 lines ordered by Spotify date-added (newest first by default), each
     resolved to a downloaded file via ISRC then artist|title. Downloaded files
@@ -120,13 +230,18 @@ def build_m3u(tracks, file_by_isrc, file_by_key, all_rels, newest_first=True):
 
 
 def finalize_folder(folder, tracks, newest_first=True):
-    """Stamp each audio file's mtime to its Spotify added-at date AND rewrite
-    `<folder>.m3u8` in date-added order. One tag scan feeds both."""
+    """One tag scan of the folder that does three things per audio file: stamp
+    its mtime to the Spotify added-at date, backfill any missing Jellyfin tags
+    (title/artist/album/albumartist/isrc) from Spotify, and index it for the
+    date-ordered `<folder>.m3u8` (rewritten at the end). Returns
+    (stamped, unmatched, tagged)."""
     import mutagen  # spotDL dependency
 
     by_isrc, by_key = added_at_indexes(tracks)
-    file_by_isrc, file_by_key, all_rels = {}, {}, []
-    stamped = unmatched = 0
+    t_by_isrc, t_by_key, t_by_stem = _track_lookups(tracks)
+    backfill = os.getenv("LOCAL_MIRROR_TAG_BACKFILL", "1") != "0"
+    file_by_isrc, file_by_key, all_rels, img_cache = {}, {}, [], {}
+    stamped = unmatched = tagged = 0
     for path in sorted(folder.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in AUDIO_EXTS:
             continue
@@ -153,10 +268,36 @@ def finalize_folder(folder, tracks, newest_first=True):
             stamped += 1
         else:
             unmatched += 1
+        if backfill and audio is not None:
+            track = _match_track(isrcs, title, artists, path.stem, t_by_isrc, t_by_key, t_by_stem)
+            if track:
+                touched = _fill_missing(audio, track)
+                if touched:
+                    try:
+                        audio.save()
+                    except Exception:
+                        touched = False
+                # Album image for Jellyfin: a cover.jpg in the album folder,
+                # plus embedded art on any file that lacks it. Only spend a
+                # download when the folder art is missing or we just fixed tags.
+                cover = path.parent / "cover.jpg"
+                if track.get("image") and (not cover.exists() or touched):
+                    data = _fetch_image(track["image"], img_cache)
+                    if data:
+                        if not cover.exists():
+                            try:
+                                cover.write_bytes(data)
+                                touched = True
+                            except Exception:
+                                pass
+                        if _embed_cover(path, data):
+                            touched = True
+                if touched:
+                    tagged += 1
 
     lines = build_m3u(tracks, file_by_isrc, file_by_key, all_rels, newest_first)
     (folder / f"{folder.name}.m3u8").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return stamped, unmatched
+    return stamped, unmatched, tagged
 
 
 def save_cover(playlist, folder):
@@ -312,9 +453,10 @@ def _sync_one(sp, playlist, folder, timeout_s):
 
     # Newest-added first (top of the list, like Spotify); LOCAL_MIRROR_ORDER=oldest flips it.
     newest_first = os.getenv("LOCAL_MIRROR_ORDER", "newest").strip().lower() != "oldest"
-    stamped, _ = finalize_folder(folder, read_tracks(sp, playlist["id"]), newest_first)
+    stamped, _, tagged = finalize_folder(folder, read_tracks(sp, playlist["id"]), newest_first)
     order = "newest-first" if newest_first else "oldest-first"
-    log_summary(f"{name}: {downloaded} downloaded, {skipped} already had, {stamped} date-stamped, m3u {order}"
+    extra = f", {tagged} tagged" if tagged else ""
+    log_summary(f"{name}: {downloaded} downloaded, {skipped} already had, {stamped} date-stamped{extra}, m3u {order}"
                 f"  (in {fmt_secs(time.monotonic() - started)})", tag="local")
 
 
@@ -350,9 +492,10 @@ def refresh(sp, spotify_playlists, download_dir):
                 continue
             try:
                 save_cover(playlist, folder)
-                stamped, _ = finalize_folder(folder, read_tracks(sp, playlist["id"]), newest_first)
+                stamped, _, tagged = finalize_folder(folder, read_tracks(sp, playlist["id"]), newest_first)
                 order = "newest-first" if newest_first else "oldest-first"
-                log_summary(f"{name}: m3u {order}, {stamped} date-stamped", tag="local")
+                extra = f", {tagged} tagged" if tagged else ""
+                log_summary(f"{name}: m3u {order}, {stamped} date-stamped{extra}", tag="local")
             except Exception as e:
                 log_warn(f"'{name}': {e!r}", tag="local")
     except Exception as e:

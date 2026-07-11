@@ -284,6 +284,13 @@ next pass (only the file in flight when it stopped is re-fetched). The Spotify
 playlist cover is saved at the highest resolution Spotify offers and refreshed
 only when it changes.
 
+**Metadata for Jellyfin.** spotDL embeds full Spotify tags + cover art on
+download. On top of that, finalize **backfills any missing** tags
+(title/artist/album/albumartist/ISRC) and cover art from Spotify — fixing the
+occasional poorly-tagged file (e.g. a YouTube-sourced one) without overwriting
+what spotDL wrote — and drops a `cover.jpg` in each album folder so Jellyfin
+always has album art. Set `LOCAL_MIRROR_TAG_BACKFILL=0` to disable.
+
 **Hard-to-find tracks.** spotDL falls back from YouTube Music to plain YouTube
 (`LOCAL_MIRROR_AUDIO_PROVIDERS`), which recovers most OSTs / instrumentals /
 indie tracks that aren't YT Music catalog songs. Some genuinely-unavailable
