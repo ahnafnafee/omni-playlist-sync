@@ -53,6 +53,36 @@ Every pass, for each selected playlist name that exists on Spotify:
 > mode is gone; the old `synced_isrcs.json` / `apple_spotify_uri_cache.json`
 > files are obsolete and can be deleted.
 
+### Matching
+
+Same hierarchy the cross-service tools use
+([TuneLink](https://tommcfarlin.com/case-study-tunelink-matching-music-ai/),
+MusicBrainz): **hard identifier → search → fuzzy score**.
+
+1. **Cached link** — once a Spotify track is matched to an Apple catalog id /
+   YT videoId, that link is stored and reused (immune to title drift).
+2. **ISRC** — exact recording identity where the service exposes it (Apple).
+3. **Scored search** — [RapidFuzz](https://rapidfuzz.com/) `token_set_ratio`
+   (order-, subset- and decoration-tolerant) + Jaro-Winkler, over both the raw
+   and **romanized** ([anyascii](https://github.com/anyascii/anyascii)) title
+   and artist, anchored by duration. This handles, without hardcoding:
+   - **Multi-artist credits** — Spotify lists every feature, services list the
+     primary (`Arijit Singh, Ved Sharma, …` ↔ `Arijit Singh`).
+   - **Title decoration** — `Tri` ↔ `Popeye (Bangladesh) - Tri (ত্রি) Official
+     Music Video`; `(feat. …)`, `- 2015 Remaster`, `(From "…")`.
+   - **Transliteration** — Cyrillic/Bengali/Greek/Arabic (`Камин` ↔ `Kamin`,
+     `নেশার বোঝা` ↔ `Neshar Bojha`).
+   - **Video-only tracks** — YT search falls back to the `videos` filter, since
+     many Bangla/indie/OST tracks live on YT only as uploads, not catalog songs.
+
+   The **duration anchor** unlocks the looser (decoration/subset) title match,
+   so a different version (`Runaway - Piano Version`) or a wrong-artist cover
+   isn't accepted when its length disagrees.
+
+   **Known limit:** CJK (Japanese/Chinese) romanizes to a *Chinese* reading, so
+   kanji/kana titles that a service stores only in native script may still miss.
+   Tracks with no confident match are reported (`x Not on …`) and skipped.
+
 ## Requirements
 
 - Python 3.13+ and [`uv`](https://docs.astral.sh/uv/)

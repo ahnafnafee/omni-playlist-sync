@@ -26,7 +26,10 @@ from difflib import SequenceMatcher
 
 import requests
 import spotipy
+from anyascii import anyascii
 from dotenv import load_dotenv
+from rapidfuzz import fuzz
+from rapidfuzz.distance import JaroWinkler
 from spotipy.oauth2 import SpotifyOAuth
 
 import song_cache
@@ -101,34 +104,73 @@ def fuzzy_in(key, keys, threshold=FUZZY_THRESHOLD):
     return any(SequenceMatcher(None, key, k).ratio() >= threshold for k in keys)
 
 
-def core_name(name):
-    """Title stripped of every bracketed group and any ' - suffix'
-    ("Song - 2015 Remaster" -> "song"). Aggressive, so matches based on it are
-    only trusted when the duration corroborates them."""
-    base = re.sub(r"[\(\[].*?[\)\]]", " ", str(name or "")).split(" - ")[0]
-    return loose_name(base) or loose_name(name)
+def romanized(text):
+    """ASCII romanization for cross-script matching (Камин->kamin, ত্রি->tri).
+    Cyrillic / Bengali / Greek / Arabic romanize reliably; CJK yields a Chinese
+    reading, so kanji/kana titles stay best-effort."""
+    return normalize_text(anyascii(str(text or "")))
 
 
-def score_candidate(name, artist, duration_ms, cand_name, cand_artist, cand_duration_ms):
-    """(score, acceptable) for a search-result candidate vs the wanted track.
-    Shared by every mirror target that has to match without a hard identifier.
-    Compares feat-stripped names ("(feat. X)" credits differ across services
-    for the same recording); when the durations agree it also accepts
-    core-title matches, which folds "- 2015 Remaster"-style suffix drift."""
-    loose_ratio = SequenceMatcher(None, loose_name(name), loose_name(cand_name)).ratio()
-    core_ratio = SequenceMatcher(None, core_name(name), core_name(cand_name)).ratio()
-    artist_ratio = SequenceMatcher(None, normalize_text(artist), normalize_text(cand_artist)).ratio()
+def _name_variants(text):
+    return {v for v in (loose_name(text), romanized(text)) if v}
+
+
+def _sim_strict(a, b):
+    """0..1 similarity that PENALIZES extra words on either side (token_sort),
+    with a Jaro-Winkler floor for short strings and transliteration near-misses
+    ("nesar" vs "neshar"). Rejects different versions (Live/Piano/Remix) whose
+    titles carry extra words, so it gates acceptance when duration can't."""
+    if not a or not b:
+        return 0.0
+    return max(fuzz.token_sort_ratio(a, b) / 100.0, JaroWinkler.normalized_similarity(a, b))
+
+
+def _sim_loose(a, b):
+    """0..1 token-set similarity: order-, subset- and decoration-tolerant. High
+    when one string's tokens are a subset of the other's — multi-artist credits
+    ("Arijit Singh" ⊂ "Arijit Singh, Ved Sharma, ...") and decorated titles
+    ("Tri" ⊂ "Popeye - Tri (ত্রি) Official Music Video"). Powerful but only
+    trusted for titles when the duration corroborates the match."""
+    if not a or not b:
+        return 0.0
+    return fuzz.token_set_ratio(a, b) / 100.0
+
+
+def _best(sim, q_variants, c_variants):
+    return max((sim(a, b) for a in q_variants for b in c_variants if a and b), default=0.0)
+
+
+def score_candidate(name, artists, duration_ms, cand_name, cand_artist, cand_duration_ms):
+    """(score in 0..1, acceptable) for a search-result candidate vs the wanted
+    track — the fuzzy fallback when no ISRC/link resolves it. RapidFuzz
+    token-set matching tolerates word order, multi-artist credits, and title
+    decoration; romanized variants fold script differences; the duration anchor
+    unlocks the looser title match so covers / different versions are rejected
+    when duration disagrees. See the matching notes in the README."""
+    if isinstance(artists, str):
+        artists = [artists]
+    q_names, c_names = _name_variants(name), _name_variants(cand_name)
+    name_strict = _best(_sim_strict, q_names, c_names)
+    name_loose = _best(_sim_loose, q_names, c_names)
+
+    joined = " ".join(artists)
+    q_art = {normalize_text(joined), romanized(joined)}
+    c_art = {normalize_text(cand_artist), romanized(cand_artist)}
+    artist_sim = _best(_sim_loose, q_art, c_art)  # subset-tolerant: services list the primary artist
+
     if duration_ms is not None and cand_duration_ms is not None:
-        duration_delta = abs(duration_ms - cand_duration_ms)
-        duration_score = max(0.0, 1.0 - duration_delta / (DURATION_TOLERANCE_MS * 4))
+        delta = abs(duration_ms - cand_duration_ms)
+        duration_score = max(0.0, 1.0 - delta / (DURATION_TOLERANCE_MS * 4))
+        duration_close = delta <= DURATION_TOLERANCE_MS
     else:
-        duration_delta = None
-        duration_score = 0.6
-    duration_close = duration_delta is not None and duration_delta <= DURATION_TOLERANCE_MS
-    name_ratio = max(loose_ratio, core_ratio) if duration_close else loose_ratio
-    score = 0.5 * name_ratio + 0.3 * artist_ratio + 0.2 * duration_score
-    strong = duration_close and name_ratio >= 0.8 and artist_ratio >= 0.6
-    fuzzy = loose_ratio >= FUZZY_THRESHOLD and artist_ratio >= 0.5
+        duration_score, duration_close = 0.5, False
+
+    # Loose (decoration/subset) title match is trusted only with duration
+    # corroboration; otherwise fall back to the length-sensitive strict score.
+    name_sim = max(name_strict, name_loose) if duration_close else name_strict
+    score = 0.45 * name_sim + 0.35 * artist_sim + 0.20 * duration_score
+    strong = duration_close and name_sim >= 0.78 and artist_sim >= 0.58
+    fuzzy = name_strict >= 0.88 and artist_sim >= 0.60
     return score, (strong or fuzzy)
 
 
@@ -275,33 +317,46 @@ def apple_songs_by_isrc(headers, storefront, isrcs, cache):
         polite_sleep(0.25)
 
 
-def apple_search_song(headers, storefront, name, artist, duration_ms, cache):
-    """Fallback when a Spotify track has no usable ISRC match: fuzzy-score the
-    Apple catalog search results (same weights the old script used). Misses are
-    cached as None so permanently-unavailable tracks aren't re-searched every
-    pass -delete the cache file to retry them."""
-    if not f"{name} {artist}".strip():
-        return None  # nothing to search for; amp-api 400s on an empty term
-    key = track_key(name, artist)
-    if key in cache["search"]:
-        return cache["search"][key]
-
+def _apple_search_once(headers, storefront, term, name, artists, duration_ms):
     r = apple_request(
         "GET",
         f"{AMP}/catalog/{storefront}/search",
         headers,
-        params={"term": f"{name} {artist}", "types": "songs", "limit": 10, "l": "en-us"},
+        params={"term": term, "types": "songs", "limit": 10, "l": "en-us"},
     )
-    songs = r.json().get("results", {}).get("songs", {}).get("data", [])
     best_id, best_score = None, -1.0
-    for song in songs:
+    for song in r.json().get("results", {}).get("songs", {}).get("data", []):
         attrs = song.get("attributes", {})
         score, acceptable = score_candidate(
-            name, artist, duration_ms,
+            name, artists, duration_ms,
             attrs.get("name", ""), attrs.get("artistName", ""), attrs.get("durationInMillis"),
         )
         if acceptable and score > best_score:
             best_score, best_id = score, song.get("id")
+    return best_id
+
+
+def apple_search_song(headers, storefront, name, artists, duration_ms, cache):
+    """Fallback when a Spotify track has no usable ISRC match: score the Apple
+    catalog search results. Searches by primary artist (services index the
+    primary, not the full feature credit), then retries with a romanized query
+    for non-Latin titles. Misses are cached as None -delete the cache file to
+    retry them."""
+    if isinstance(artists, str):
+        artists = [artists]
+    primary = artists[0] if artists else ""
+    if not f"{name} {primary}".strip():
+        return None  # nothing to search for; amp-api 400s on an empty term
+    key = track_key(name, " ".join(artists))
+    if key in cache["search"]:
+        return cache["search"][key]
+
+    best_id = _apple_search_once(headers, storefront, f"{name} {primary}".strip(), name, artists, duration_ms)
+    if not best_id:
+        rom = f"{romanized(name)} {romanized(primary)}".strip()
+        if rom and rom != normalize_text(f"{name} {primary}"):
+            polite_sleep(0.3)
+            best_id = _apple_search_once(headers, storefront, rom, name, artists, duration_ms)
 
     cache["search"][key] = best_id
     cache["dirty"] = True
@@ -555,7 +610,7 @@ def mirror_pair(sp_tracks, headers, storefront, sp_playlist, ap_playlist, cache,
         if not catalog_id:
             try:
                 catalog_id = apple_search_song(
-                    headers, storefront, track["name"], " ".join(track["artists"]), track["duration_ms"], cache
+                    headers, storefront, track["name"], track["artists"], track["duration_ms"], cache
                 )
             except AppleAuthError:
                 raise

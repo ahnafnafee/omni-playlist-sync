@@ -105,30 +105,57 @@ def yt_playlist_tracks(yt, playlist_id):
     return playlist, tracks
 
 
+def _score_yt_results(track, results, best):
+    best_id, best_score = best
+    for cand in results or []:
+        vid = cand.get("videoId")
+        if not vid:
+            continue
+        cand_artist = ", ".join(a.get("name", "") for a in cand.get("artists") or []) or cand.get("author") or ""
+        duration_s = cand.get("duration_seconds")
+        score, acceptable = main.score_candidate(
+            track["name"], track["artists"], track["duration_ms"],
+            cand.get("title", ""), cand_artist, duration_s * 1000 if duration_s else None,
+        )
+        if acceptable and score > best_score:
+            best_id, best_score = vid, score
+    return best_id, best_score
+
+
 def resolve_video_id(yt, track, cache):
-    """Spotify track -> YT videoId via cached song search + shared scorer.
+    """Spotify track -> YT videoId. Tries the 'songs' catalog first, then falls
+    back to 'videos' (lots of Bangla / OST / instrumental tracks live on YT
+    only as uploads, not catalog songs), then retries romanized for non-Latin
+    titles. Stops at the first acceptable hit to keep the request count down.
     Misses are cached as None; delete the cache file to retry them."""
-    artist = " ".join(track["artists"])
-    if not f"{track['name']} {artist}".strip():
+    primary = track["artists"][0] if track["artists"] else ""
+    if not f"{track['name']} {primary}".strip():
         return None
-    key = track_key(track["name"], artist)
+    key = track_key(track["name"], " ".join(track["artists"]))
     if key in cache["search"]:
         return cache["search"][key]
 
-    best_id, best_score = None, -1.0
-    results = with_backoff(lambda: yt.search(f"{track['name']} {artist}", filter="songs", limit=10), "search")
-    for cand in results or []:
-        if not cand.get("videoId"):
-            continue
-        cand_artists = " ".join(a.get("name", "") for a in cand.get("artists") or [])
-        duration_s = cand.get("duration_seconds")
-        score, acceptable = main.score_candidate(
-            track["name"], artist, track["duration_ms"],
-            cand.get("title", ""), cand_artists, duration_s * 1000 if duration_s else None,
-        )
-        if acceptable and score > best_score:
-            best_score, best_id = score, cand["videoId"]
+    queries = [f"{track['name']} {primary}".strip()]
+    rom = f"{main.romanized(track['name'])} {main.romanized(primary)}".strip()
+    if rom and rom != main.normalize_text(queries[0]):
+        queries.append(rom)
 
+    best = (None, -1.0)
+    for qi, query in enumerate(queries):
+        for filt in ("songs", "videos"):
+            try:
+                results = with_backoff(lambda q=query, f=filt: yt.search(q, filter=f, limit=8), f"search {filt}")
+            except Exception:
+                if filt == "songs" and qi == 0:
+                    raise  # a hard failure on the very first search is a real error
+                results = []
+            best = _score_yt_results(track, results, best)
+            if best[0]:
+                break  # acceptable match found; don't spend more searches
+        if best[0]:
+            break
+
+    best_id = best[0]
     cache["search"][key] = best_id
     cache["dirty"] = True
     polite_sleep(0.6)

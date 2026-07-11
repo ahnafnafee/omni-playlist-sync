@@ -5,7 +5,9 @@ description = "Mirror Spotify playlists to same-named Apple Music playlists, wit
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "anyascii>=0.3,<1",
     "python-dotenv>=1.2.2",
+    "rapidfuzz>=3.9,<4",
     "requests>=2.32.5",
     "spotipy>=2.26.0",
     "ytmusicapi>=1.12,<2",

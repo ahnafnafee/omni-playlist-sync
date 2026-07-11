@@ -107,14 +107,31 @@ def run():
     assert [t["relationship_id"] for t in held] == ["i.held"]
     assert [t["relationship_id"] for t in safe] == ["i.safe"]
 
-    # Core-title matching: "- 2015 Remaster" suffix drift matches when the
-    # duration agrees; a different version (duration off) is still rejected.
     from main import score_candidate
 
-    _, acceptable = score_candidate("Elegia - 2015 Remaster", "New Order", 293_000, "Elegia", "New Order", 293_500)
-    assert acceptable
-    _, acceptable = score_candidate("Runaway - Piano Version", "AURORA", 243_000, "Runaway", "AURORA", 309_000)
-    assert not acceptable
+    def accepts(*a):
+        return score_candidate(*a)[1]
+
+    # Suffix/decoration drift matches when the duration agrees...
+    assert accepts("Elegia - 2015 Remaster", "New Order", 293_000, "Elegia", "New Order", 293_500)
+    # ...but a different version whose duration disagrees is rejected.
+    assert not accepts("Runaway - Piano Version", "AURORA", 243_000, "Runaway", "AURORA", 309_000)
+
+    # Multi-artist: Spotify lists every credit, the service lists the primary.
+    assert accepts(
+        "Jeena Sikha De", ["Arijit Singh", "Ved Sharma", "Kunaal Vermaa"], 271_000,
+        "Jeena Sikha De", "Arijit Singh", 271_000,
+    )
+    # Video-only track: decorated title + duration corroboration.
+    assert accepts(
+        "Tri", ["Popeye Bangladesh"], 241_000,
+        "Popeye (Bangladesh) - Tri (ত্রি) Official Music Video", "Popeye Bangladesh", 241_000,
+    )
+    # Transliteration: Bengali <-> romanized, Cyrillic <-> romanized.
+    assert accepts("Neshar Bojha", ["Syed Hassan Samin"], 300_000, "নেশার বোঝা", "Syed Hassan Samin", 300_000)
+    assert accepts("Kamin", ["EMIN"], 200_000, "Камин", "EMIN", 201_000)
+    # A cover by a different artist with a wrong duration is NOT accepted.
+    assert not accepts("Oniket Prantor", ["Artcell"], 341_000, "Oniket Prantor", "Mehedi H Joy", 134_000)
 
     # Non-Latin scripts survive normalization; feat-credit drift still folds.
     from main import loose_name, track_key
