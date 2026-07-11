@@ -140,23 +140,6 @@ def test_match_track():
     assert lm._match_track([], "Nope", ["X"], "x - y", by_isrc, by_key, by_stem) is None
 
 
-def test_missing_tracks_by_filename():
-    def tk(name, artist):
-        keys = set()
-        title = lm._norm(name)
-        for a in {lm._norm(artist), lm._norm(artist.split(",")[0])}:
-            if a:
-                keys.add(f"{a}|{title}")
-        return {"name": name, "artist": artist, "isrc": None, "keys": keys}
-
-    with tempfile.TemporaryDirectory() as tmp:
-        folder = Path(tmp)
-        (folder / "A").mkdir()
-        (folder / "A" / "Alpha - Song One.mp3").write_bytes(b"x")  # untagged -> matched by filename stem
-        missing = lm._missing_tracks(folder, [tk("Song One", "Alpha"), tk("Song Two", "Beta")])
-        assert [t["name"] for t in missing] == ["Song Two"]  # present one covered, absent one missing
-
-
 def test_fetch_image_cache():
     calls, real = [], lm.requests.get
     lm.requests.get = lambda *a, **k: (calls.append(1), types.SimpleNamespace(content=b"IMG", raise_for_status=lambda: None))[1]

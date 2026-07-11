@@ -438,65 +438,22 @@ def _stream_spotdl(cmd, folder, timeout_s):
     return counts["downloaded"], counts["skipped"], proc.returncode
 
 
-def _missing_tracks(folder, tracks):
-    """Current tracks with no matching downloaded file (ISRC -> tags -> the
-    spotDL '{artists} - {title}' filename). A quick local scan that lets us skip
-    spotDL's minutes-long startup when everything is already present."""
-    import mutagen  # spotDL dependency
-
-    have_isrc, have_key, have_stem = set(), set(), set()
-    for path in folder.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in AUDIO_EXTS:
-            continue
-        try:
-            audio = mutagen.File(path, easy=True)
-        except Exception:
-            audio = None
-        for i in (audio.get("isrc") if audio else []) or []:
-            have_isrc.add(str(i).strip().upper())
-        norm_title = _norm((audio.get("title") if audio else [""])[0] if audio else "")
-        if norm_title:
-            for raw in (audio.get("artist") if audio else []) or []:
-                for a in (_norm(raw), _norm(re.split(r"[,;/]", raw)[0])):
-                    if a:
-                        have_key.add(f"{a}|{norm_title}")
-        have_stem.add(_norm(path.stem))
-
-    missing = []
-    for t in tracks:
-        if t.get("isrc") and t["isrc"] in have_isrc:
-            continue
-        if any(k in have_key for k in t["keys"]):
-            continue
-        primary = t["artist"].split(",")[0].strip()
-        if {_norm(f"{primary} - {t['name']}"), _norm(f"{t['artist']} - {t['name']}")} & have_stem:
-            continue
-        missing.append(t)
-    return missing
-
-
 def _sync_one(sp, playlist, folder, timeout_s):
     name = playlist.get("name") or playlist["id"]
     folder.mkdir(parents=True, exist_ok=True)
     save_cover(playlist, folder)
+
+    save_file = folder / ".sync.spotdl"  # spotDL requires the .spotdl extension
+    url = (playlist.get("external_urls") or {}).get("spotify") or f"https://open.spotify.com/playlist/{playlist['id']}"
     started = time.monotonic()
+    log_note(f"'{name}': syncing downloads (spotDL)...", tag="local")
+    downloaded, skipped, code = _stream_spotdl(build_sync_cmd(folder, save_file, url), folder, timeout_s)
+    if code != 0:
+        log_warn(f"'{name}': spotdl exited {code} (partial progress kept; resumes next pass)", tag="local")
 
-    tracks = read_tracks(sp, playlist["id"])
+    # Newest-added first (top of the list, like Spotify); LOCAL_MIRROR_ORDER=oldest flips it.
     newest_first = os.getenv("LOCAL_MIRROR_ORDER", "newest").strip().lower() != "oldest"
-    missing = _missing_tracks(folder, tracks)
-
-    downloaded = skipped = code = 0
-    if missing:
-        log_note(f"'{name}': {len(missing)}/{len(tracks)} track(s) missing - syncing (spotDL)...", tag="local")
-        save_file = folder / ".sync.spotdl"  # spotDL requires the .spotdl extension
-        url = (playlist.get("external_urls") or {}).get("spotify") or f"https://open.spotify.com/playlist/{playlist['id']}"
-        downloaded, skipped, code = _stream_spotdl(build_sync_cmd(folder, save_file, url), folder, timeout_s)
-        if code != 0:
-            log_warn(f"'{name}': spotdl exited {code} (partial progress kept; resumes next pass)", tag="local")
-    else:
-        log_note(f"'{name}': all {len(tracks)} tracks already downloaded - skipping spotDL", tag="local")
-
-    stamped, _, tagged = finalize_folder(folder, tracks, newest_first)
+    stamped, _, tagged = finalize_folder(folder, read_tracks(sp, playlist["id"]), newest_first)
     order = "newest-first" if newest_first else "oldest-first"
     extra = f", {tagged} tagged" if tagged else ""
     log_summary(f"{name}: {downloaded} downloaded, {skipped} already had, {stamped} date-stamped{extra}, m3u {order}"
