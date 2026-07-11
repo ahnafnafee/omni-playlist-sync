@@ -239,6 +239,8 @@ def _stream_spotdl(cmd, folder, timeout_s):
         proc.wait()
     finally:
         killer.cancel()
+        if proc.poll() is None:  # interrupted/timed out — don't orphan the child
+            proc.kill()
     return downloaded, skipped, proc.returncode
 
 

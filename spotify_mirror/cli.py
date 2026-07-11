@@ -17,6 +17,9 @@ def main(argv=None):
     while True:
         try:
             run_pass(opts)
+        except KeyboardInterrupt:
+            log_note("interrupted - stopping")
+            sys.exit(130)
         except TargetAuthError as e:
             log_warn(str(e))
             if not opts.loop:
@@ -27,5 +30,9 @@ def main(argv=None):
             log_warn(f"pass failed: {e!r}")
         if not opts.loop:
             break
-        log_note(f"next pass in {fmt_secs(opts.interval_s)}")
-        time.sleep(opts.interval_s)
+        try:
+            log_note(f"next pass in {fmt_secs(opts.interval_s)}")
+            time.sleep(opts.interval_s)
+        except KeyboardInterrupt:
+            log_note("interrupted - stopping")
+            sys.exit(130)

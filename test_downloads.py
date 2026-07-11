@@ -98,7 +98,8 @@ def test_stream_parsing():
         "LookupError: No results found for song: Weird Track\n",
         "\n",
     ]
-    proc = types.SimpleNamespace(stdout=iter(lines), returncode=0, wait=lambda: None, kill=lambda: None)
+    proc = types.SimpleNamespace(stdout=iter(lines), returncode=0, wait=lambda: None,
+                                 poll=lambda: 0, kill=lambda: None)
     real = lm.subprocess.Popen
     lm.subprocess.Popen = lambda *a, **k: proc
     try:

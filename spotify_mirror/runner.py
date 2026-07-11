@@ -131,12 +131,17 @@ def run_pass(opts):
             errors.append((target, e))
 
     started = time.monotonic()
-    threads = [threading.Thread(target=worker, args=(t,), name=f"{t.tag}-mirror") for t in targets]
+    # daemon so a Ctrl+C on the main thread can exit the process even while a
+    # worker is mid-request; join in short slices so the interrupt is prompt.
+    threads = [threading.Thread(target=worker, args=(t,), name=f"{t.tag}-mirror", daemon=True) for t in targets]
     for t in threads:
         t.start()
-    for t in threads:
-        t.join()
-    songs.close()
+    try:
+        for t in threads:
+            while t.is_alive():
+                t.join(0.5)
+    finally:
+        songs.close()
 
     log_section("Pass complete", fmt_secs(time.monotonic() - started))
     for target in targets:
