@@ -257,14 +257,22 @@ dir and both the tracks and the playlists appear, staying updated every pass:
 <DOWNLOAD_DIR>\
   <Playlist>\
     <Playlist>.m3u8          # auto-(re)generated; Jellyfin imports it as a
+    cover.jpg / folder.jpg   # the Spotify playlist cover, highest resolution
     <AlbumArtist>\           # playlist named after the file, in Spotify order
       <Album>\
         Artists - Title.mp3  # tagged + cover art embedded
 ```
 
+**Resumable & incremental.** spotDL `sync` only downloads what's missing —
+already-downloaded files are skipped (`--overwrite skip`), tracks removed from
+the Spotify playlist are deleted locally, and an interrupted run just continues
+next pass (only the file in flight when it stopped is re-fetched). The Spotify
+playlist cover is saved at the highest resolution Spotify offers and refreshed
+only when it changes.
+
 Optional env: `LOCAL_MIRROR_FORMAT` (mp3 default; changing it after the first
 run orphans old files), `LOCAL_MIRROR_TIMEOUT` (seconds per playlist per pass,
-default 3600 — a killed run resumes next pass).
+default 3600), `LOCAL_MIRROR_VERBOSE=1` (echo all spotDL output).
 
 Download-mirror caveats:
 
@@ -337,11 +345,37 @@ Removals are destructive, so they're guarded:
 - Playlist cover art isn't copied — neither Apple nor YT Music exposes artwork
   upload; both auto-generate a mosaic cover from the tracks.
 
+## Project layout
+
+Runnable as `uv run main.py` (thin shim) or `python -m spotify_mirror`.
+
+```text
+spotify_mirror/
+  cli.py         # entry: parse args, run once or loop
+  runner.py      # build targets, run each in its own thread, then downloads
+  config.py      # constants, env, CLI options
+  spotify.py     # read-only source: client, playlists, tracks
+  matching.py    # normalize / romanize / score / diff / removal guards
+  archive.py     # SQLite: song archive + id links + snapshot state
+  logs.py        # colourised, thread-safe, severity-tagged logging
+  downloads.py   # spotDL local mirror + covers
+  targets/
+    base.py      # MirrorTarget interface + the shared mirror_pair loop
+    apple.py     # Apple Music (amp-api)
+    ytmusic.py   # YouTube Music (ytmusicapi)
+```
+
+**Adding a service** (Tidal, Deezer, ...): subclass `MirrorTarget`, implement
+~8 methods (`list_playlists`, `playlist_tracks`, `track_id`, `resolve`, `add`,
+`remove`, `create`, `is_editable`), and add its builder to
+`targets/build_targets`. All the reconciliation — diff, ordering, safety rails,
+logging, stats, snapshot-skip — is inherited from `base.mirror_pair`.
+
 ## Self-check
 
 ```bash
-uv run test_main.py
-uv run python test_local_mirror.py
+uv run test_matching.py
+uv run python test_downloads.py
 ```
 
 ## Troubleshooting

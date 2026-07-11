@@ -1,10 +1,15 @@
-"""Ever-growing local archive of every song seen during sync passes.
+"""Ever-growing local SQLite archive + resolution memory.
 
-SQLite (stdlib) rather than pickle: incremental appends instead of rewriting a
-blob, survives a crash mid-write, and stays inspectable
+Three tables in one file:
+- songs:      every track ever seen on any service (never deleted) — a durable
+              metadata record with first/last-seen timestamps.
+- links:      spotify_id -> target_id for every successful match, so later
+              passes match by hard identifier instead of re-searching.
+- sync_state: a playlist's Spotify snapshot_id after a clean pass, so an
+              unchanged pair can be skipped wholesale.
+
+SQLite over a pickle blob: incremental writes, crash-safe, and inspectable
 (`sqlite3 song_cache.db "SELECT name, artist, last_seen FROM songs"`).
-Rows are only ever inserted or refreshed, never deleted — tracks that later
-vanish from every playlist remain archived with their full metadata.
 """
 
 import json
@@ -52,19 +57,19 @@ UPSERT = """
 INSERT INTO songs (source, id, isrc, name, artist, album, duration_ms, meta, first_seen, last_seen)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(source, id) DO UPDATE SET
-    isrc = excluded.isrc,
-    name = excluded.name,
-    artist = excluded.artist,
-    album = excluded.album,
-    duration_ms = excluded.duration_ms,
-    meta = excluded.meta,
-    last_seen = excluded.last_seen
+    isrc = excluded.isrc, name = excluded.name, artist = excluded.artist,
+    album = excluded.album, duration_ms = excluded.duration_ms,
+    meta = excluded.meta, last_seen = excluded.last_seen
 """
 
 
+def _now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def connect(path):
-    # check_same_thread=False: each mirror thread holds its own connection or
-    # sole use of one; the generous timeout rides out cross-connection locks.
+    # check_same_thread=False: the Apple and YT mirrors run on separate threads,
+    # each with its own use of a connection; the timeout rides out any lock.
     conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
     for schema in SCHEMAS:
         conn.execute(schema)
@@ -72,13 +77,29 @@ def connect(path):
     return conn
 
 
-def _now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def upsert_many(conn, source, tracks):
+    """Archive the sync's own snapshot dicts (any service shape). first_seen is
+    preserved on refresh; meta keeps the full snapshot as JSON."""
+    now = _now()
+    rows = []
+    for track in tracks:
+        song_id = track.get("id") or track.get("catalog_id") or track.get("relationship_id")
+        if not song_id:
+            continue
+        artist = track.get("artist") or ", ".join(track.get("artists") or [])
+        rows.append((
+            source, song_id, track.get("isrc"), track.get("name"), artist,
+            track.get("album"), track.get("duration_ms"),
+            json.dumps(track, ensure_ascii=False), now, now,
+        ))
+    if rows:
+        conn.executemany(UPSERT, rows)
+        conn.commit()
+    return len(rows)
 
 
 def get_links(conn, target, spotify_ids):
-    """{spotify_id: target_id} for previously matched tracks — hard identifier
-    mapping, checked before any ISRC or search resolution."""
+    """{spotify_id: target_id} for previously matched tracks."""
     out = {}
     ids = [i for i in spotify_ids if i]
     for i in range(0, len(ids), 500):
@@ -93,8 +114,8 @@ def get_links(conn, target, spotify_ids):
 
 
 def set_links(conn, target, mapping):
-    # ponytail: links are trusted forever; if a linked id goes stale (region
-    # pull), delete its row from the links table to force re-resolution.
+    # ponytail: links are trusted forever; delete a row to force re-resolution
+    # if a linked id ever goes stale (e.g. a regional catalog pull).
     rows = [(sid, target, tid, _now()) for sid, tid in mapping.items() if sid and tid]
     if rows:
         conn.executemany("INSERT OR REPLACE INTO links VALUES (?, ?, ?, ?)", rows)
@@ -102,10 +123,9 @@ def set_links(conn, target, mapping):
 
 
 def get_state(conn, pair, target):
-    row = conn.execute(
+    return conn.execute(
         "SELECT snapshot_id, target_count FROM sync_state WHERE pair = ? AND target = ?", (pair, target)
     ).fetchone()
-    return row  # (snapshot_id, target_count) or None
 
 
 def set_state(conn, pair, target, snapshot_id, target_count):
@@ -114,33 +134,3 @@ def set_state(conn, pair, target, snapshot_id, target_count):
         (pair, target, snapshot_id, target_count, _now()),
     )
     conn.commit()
-
-
-def upsert_many(conn, source, tracks):
-    """Archive the sync's own snapshot dicts (Spotify or Apple shape).
-    first_seen is preserved on refresh; meta keeps the full snapshot as JSON."""
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    rows = []
-    for track in tracks:
-        song_id = track.get("id") or track.get("catalog_id") or track.get("relationship_id")
-        if not song_id:
-            continue
-        artist = track.get("artist") or ", ".join(track.get("artists") or [])
-        rows.append(
-            (
-                source,
-                song_id,
-                track.get("isrc"),
-                track.get("name"),
-                artist,
-                track.get("album"),
-                track.get("duration_ms"),
-                json.dumps(track, ensure_ascii=False),
-                now,
-                now,
-            )
-        )
-    if rows:
-        conn.executemany(UPSERT, rows)
-        conn.commit()
-    return len(rows)

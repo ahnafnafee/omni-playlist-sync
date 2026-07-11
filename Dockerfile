@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --extra download
-COPY *.py ./
+COPY main.py ./
+COPY spotify_mirror ./spotify_mirror
 
 ENV PYTHONUNBUFFERED=1
 CMD ["uv", "run", "--no-sync", "main.py", "--execute", "--loop"]
