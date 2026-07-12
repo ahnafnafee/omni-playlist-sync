@@ -176,22 +176,35 @@ First run opens a browser once for Spotify OAuth; the token is cached (default
 
 ## Always running: Docker
 
+The container runs as **`spotify-mirror`** in the compose group
+**`spotify-playlist-mirror-sync`**, loops `--execute` every `SYNC_INTERVAL`,
+and persists auth + caches in `./data`.
+
+**Seed the Spotify token first** — the container can't open a browser, so it
+needs a cached token at `data/spotify_token_cache`. Either copy the one a
+direct `uv run main.py` already created:
+
 ```bash
-docker compose up -d --build
-docker compose logs -f
+cp .cache data/spotify_token_cache          # PowerShell: copy .cache data\spotify_token_cache
 ```
 
-The container loops `--execute` every `SYNC_INTERVAL`. Auth and caches persist
-in `./data`.
-
-**Seed the Spotify token first**: the container can't open a browser, so run
-this once on the host before the first `up`:
+…or generate it fresh:
 
 ```bash
 SPOTIFY_TOKEN_CACHE=data/spotify_token_cache uv run main.py
 ```
 
-(PowerShell: `$env:SPOTIFY_TOKEN_CACHE="data/spotify_token_cache"; uv run main.py`)
+For the YouTube Music mirror, also put its auth at `data/ytmusic_browser.json`.
+
+**Downloads**: set `DOWNLOAD_DIR` in `.env` to your host music dir (e.g.
+`F:\Torrent\Music`) — compose bind-mounts it to `/music` in the container
+automatically (the Windows path in `.env` is overridden to `/music` inside).
+From Docker, `JELLYFIN_URL` should be `http://host.docker.internal:8096`.
+
+```bash
+docker compose up -d --build
+docker compose logs -f
+```
 
 ## Always running: Windows Task Scheduler
 
@@ -247,9 +260,9 @@ uv sync --extra download
 ```
 
 Set `DOWNLOAD_DIR` in `.env` (e.g. `F:\Torrent\Music`) — runs as part of each
-`--execute` pass. In Docker, uncomment `DOWNLOAD_DIR: /downloads` in
-`docker-compose.yml` and point the volume at your music root (the image
-already includes spotdl and ffmpeg).
+`--execute` pass. In Docker it works out of the box: that host dir is
+bind-mounted to `/music` and used automatically (the image already includes
+spotdl and ffmpeg).
 
 The layout is Jellyfin-ready — point a Jellyfin music library at the download
 dir and both the tracks and the playlists appear, staying updated every pass:

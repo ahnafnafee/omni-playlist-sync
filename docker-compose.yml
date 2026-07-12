@@ -1,6 +1,9 @@
+name: spotify-playlist-mirror-sync   # compose project (group) name
+
 services:
-  sync:
+  mirror:
     build: .
+    container_name: spotify-mirror
     env_file: .env
     environment:
       SPOTIFY_TOKEN_CACHE: /data/spotify_token_cache
@@ -11,8 +14,11 @@ services:
       YTMUSIC_AUTH_FILE: /data/ytmusic_browser.json
       YTMUSIC_CACHE_FILE: /data/ytmusic_resolve_cache.json
       SPOTIFY_OAUTH_OPEN_BROWSER: "0"
-      # DOWNLOAD_DIR: /downloads   # uncomment to enable the local download mirror
+      # Container path; the host music dir (DOWNLOAD_DIR in .env, e.g.
+      # F:\Torrent\Music) is bind-mounted to it below. This overrides the
+      # Windows DOWNLOAD_DIR that .env sets for direct `uv run`.
+      DOWNLOAD_DIR: /music
     volumes:
       - ./data:/data
-      - ./downloads:/downloads
+      - "${DOWNLOAD_DIR:-./downloads}:/music"
     restart: unless-stopped
