@@ -6,6 +6,7 @@ import os
 import tempfile
 
 from spotify_mirror import archive
+from spotify_mirror.matching import spotify_track_keys
 from spotify_mirror.targets.base import _merge
 
 
@@ -93,6 +94,16 @@ def test_reverse_links_and_isrcs():
         {"id": "sp2", "isrc": None, "name": "B", "artists": ["Y"], "duration_ms": 1}])
     assert archive.get_isrcs(conn, "spotify", ["sp1", "sp2"]) == {"sp1": "ISRCA"}  # sp2 has no ISRC -> excluded
     conn.close()
+
+
+def test_dupe_guard_catches_same_song_variant():
+    # The exact shape that duplicated Aurora: Spotify lists all artists; Apple
+    # shows the primary with the feature in the title. They MUST share a
+    # track_key so reconcile's guard skips the add rather than duplicating the
+    # song under a second catalog id.
+    present = spotify_track_keys({"name": "Drowning (feat. Kodak Black)", "artists": ["BMike"]})
+    incoming = spotify_track_keys({"name": "Drowning", "artists": ["BMike", "Kodak Black"]})
+    assert incoming & present, "same song across providers must share a key -> guarded against duplicate add"
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from ..logs import (
     fmt_counts, fmt_secs, log_add, log_hold, log_miss, log_note, log_remove,
     log_section, log_summary, log_warn, paint,
 )
-from ..matching import compute_diff, protect_removals, track_key
+from ..matching import compute_diff, protect_removals, spotify_track_keys, track_key
 
 # A provider reading fewer than this fraction of the known baseline is treated
 # as a broken read: its removals are ignored so one bad fetch can't cascade a
@@ -266,14 +266,17 @@ def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, m
     started = time.monotonic()
     prev = {p.source: archive.get_playlist_state(songs, key, p.source) for p in peers}
 
-    canon = {}       # source -> {canonical_id: normalized track}
-    present = {}     # source -> set of ALL current target ids (not canonical-deduped)
-    key2isrc = {}    # track_key -> ISRC, seeded by any ISRC-bearing provider (peers are ISRC-rich first)
+    canon = {}         # source -> {canonical_id: normalized track}
+    present = {}       # source -> set of ALL current target ids (not canonical-deduped)
+    present_keys = {}  # source -> set of track_keys already on the provider (dupe guard)
+    key2isrc = {}      # track_key -> ISRC, seeded by any ISRC-bearing provider (peers are ISRC-rich first)
     for p in peers:
         raw = p.playlist_tracks(playlists[p.source])
         archive.upsert_many(songs, p.source, raw)
         present[p.source] = {p.track_id(t) for t in raw if p.track_id(t)}
         canon[p.source] = _canonicalize(p, raw, songs, caches[p.source], key2isrc)
+        present_keys[p.source] = set().union(*(spotify_track_keys(n) for n in canon[p.source].values())) \
+            if canon[p.source] else set()
         for cid, norm in canon[p.source].items():
             if cid.startswith("i:"):  # any provider that resolved an ISRC anchors the rest
                 key2isrc.setdefault(track_key(norm["name"], norm["artist"]), cid[2:])
@@ -313,6 +316,8 @@ def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, m
             log_warn(f"{p.name} prefetch failed: {e!r}", tag=p.tag)
         additions, not_found = [], []
         for norm in sorted(add_norms, key=lambda n: n["added_at"]):
+            if spotify_track_keys(norm) & present_keys[p.source]:
+                continue  # song already on the provider under a different id — no dupe, and no wasted search
             try:
                 tid, method = p.resolve(norm, cache)
             except TargetAuthError:
@@ -324,8 +329,9 @@ def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, m
                 not_found.append(norm)
                 continue
             if tid in seen:
-                continue  # already on this provider (a different canonical resolved to the same track)
+                continue  # resolved to a track already present (belt-and-suspenders with the key guard)
             seen.add(tid)
+            present_keys[p.source] |= spotify_track_keys(norm)  # so a second add of the same song this pass is caught
             additions.append((tid, method or "search", norm))
             if norm["_source"] == "spotify" and norm["_raw"].get("id"):
                 new_links[p.source][norm["_raw"]["id"]] = tid

@@ -1,12 +1,17 @@
-"""YouTube Music target — via the official YouTube Data API v3.
+"""YouTube Music target — hybrid: Data API v3 for reads/writes, ytmusicapi for search.
 
-Durable OAuth (refresh-token) auth. ytmusicapi's internal youtubei endpoints
-reject self-created OAuth clients (HTTP 400) and its captured browser cookies
-die within a day, so neither survives an unattended loop. The Data API shares
-YouTube's playlist/video namespace — its writes surface in the YouTube Music
-app — at the cost of a 10k-unit/day quota (search=100, insert/delete=50,
-list=1) and no ISRC, so matching stays title/artist/duration, biased toward
-`- Topic` art-tracks so resolved tracks land as native songs, not videos.
+The playlist reads and writes (list/create/add/remove) go through the official
+YouTube Data API v3 with a durable OAuth refresh token — ytmusicapi's internal
+youtubei API rejects self-made OAuth clients (HTTP 400) and its browser cookies
+die within a day, so neither survives an unattended write loop. Its writes
+share YouTube's playlist/video namespace, so they show up in the YouTube Music
+app.
+
+Resolution (matching a track to a video id) instead uses ytmusicapi's PUBLIC,
+unauthenticated search. Two reasons: it costs no Data API quota (the killer
+constraint — a Data API search is 100 of only 10k units/day), and it returns
+real catalog songs (`- Topic` art-tracks) with durations, so matches are both
+free and higher quality than the Data API's video search.
 
 Setup: create a Google "TVs and Limited Input devices" OAuth client, then
     uvx ytmusicapi oauth --file data/ytmusic_oauth.json \
@@ -30,18 +35,7 @@ from .base import MirrorTarget, TargetAuthError
 DEFAULT_AUTH_FILE = "ytmusic_oauth.json"
 API = "https://www.googleapis.com/youtube/v3"
 
-_ISO_DUR = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
 _TOPIC_RE = re.compile(r"\s*-\s*Topic$")
-# YouTube video titles embed artist + decoration ("Queen – Bohemian Rhapsody
-# (Official Video)"); art-track titles are already clean. Strip [..]/(..) that
-# carry decoration keywords, but NOT version parens like (Live)/(Acoustic) — the
-# scorer must still treat those as distinct recordings.
-_YT_DECOR = re.compile(
-    r"\[[^\]]*\]"
-    r"|\((?=[^)]*\b(?:official|video|audio|lyric|lyrics|visuali[sz]er|hd|4k|mv|remaster)\b)[^)]*\)"
-    r"|\bofficial\s+(?:music\s+)?video\b"
-    r"|\bremaster(?:ed)?(?:\s+\d{4})?\b",
-    re.IGNORECASE)
 
 
 def build():
@@ -58,7 +52,7 @@ def build():
     try:
         from ytmusicapi.auth.oauth import OAuthCredentials
     except ImportError:
-        log_note("YouTube Music skipped: ytmusicapi not installed (used only to refresh the OAuth token)", tag="yt")
+        log_note("YouTube Music skipped: ytmusicapi not installed", tag="yt")
         return None
     try:
         return YTMusicTarget(auth, OAuthCredentials(client_id=cid, client_secret=secret))
@@ -74,29 +68,9 @@ def _parse_count(value):
         return None
 
 
-def _duration_ms(iso):
-    """contentDetails.duration (ISO-8601, e.g. PT3M20S) -> ms, or None."""
-    m = _ISO_DUR.fullmatch(iso or "")
-    if not m:
-        return None
-    h, mnt, s = (int(x) if x else 0 for x in m.groups())
-    return (h * 3600 + mnt * 60 + s) * 1000
-
-
 def _artist_from_channel(channel):
     """'The Cranberries - Topic' -> 'The Cranberries'; VEVO/plain kept as-is."""
     return _TOPIC_RE.sub("", channel or "").strip()
-
-
-def _clean_title(title, artists):
-    """Strip a leading '<artist> -' and video-decoration parentheticals from a
-    YouTube title so the fuzzy scorer sees ~the song name. Version tags like
-    (Live)/(Acoustic) survive — they mark a genuinely different recording."""
-    cleaned = _YT_DECOR.sub(" ", title or "")
-    for artist in artists:
-        if artist.strip():
-            cleaned = re.sub(rf"^\s*{re.escape(artist.strip())}\s*[-–—:]\s*", "", cleaned, count=1, flags=re.IGNORECASE)
-    return " ".join(cleaned.split()).strip() or (title or "")
 
 
 def _err_reason(response):
@@ -105,6 +79,21 @@ def _err_reason(response):
         return errors[0].get("reason", "") if errors else ""
     except ValueError:
         return ""
+
+
+def _with_backoff(fn, what):
+    """Retry a ytmusicapi search past YouTube's bot-detection throttle (403/429).
+    This path spends no Data API quota — the limit here is IP-based, not the
+    daily unit budget — so backing off and retrying is worthwhile."""
+    for attempt in range(4):
+        try:
+            return fn()
+        except Exception as e:
+            if not any(code in str(e) for code in ("403", "429")) or attempt == 3:
+                raise
+            wait = 15 * (2 ** attempt) + random.uniform(0, 8)
+            log(f"  YT search throttled ({what}); backing off {int(wait)}s", tag="yt")
+            time.sleep(wait)
 
 
 class YTMusicTarget(MirrorTarget):
@@ -118,7 +107,9 @@ class YTMusicTarget(MirrorTarget):
         with open(auth_file) as f:
             self._tok = json.load(f)
         self.cache_file = os.getenv("YTMUSIC_CACHE_FILE", "ytmusic_resolve_cache.json")
-        self._session = requests.Session()
+        self._session = requests.Session()  # Data API (reads + writes)
+        from ytmusicapi import YTMusic
+        self._ytm = YTMusic()  # public, unauthenticated search for resolution (no Data API quota)
 
     # -- auth ------------------------------------------------------------------
     def _access(self):
@@ -133,12 +124,11 @@ class YTMusicTarget(MirrorTarget):
                 json.dump(self._tok, f)
         return self._tok["access_token"]
 
-    # -- HTTP ------------------------------------------------------------------
+    # -- HTTP (Data API: reads + writes only; search never touches this) --------
     def _request(self, method, path, *, params=None, json_body=None, ok404=False):
-        """One Data API call. GET/5xx retry with backoff; 429 backs off on every
-        method; 401 -> re-auth; 403 quota -> fail closed for the pass; other
-        mutation failures are single-shot (a lost add/remove self-heals next pass,
-        a blindly retried one could double-apply)."""
+        """One Data API call. GET/5xx retry with backoff; 429/409 back off and
+        retry (write volume is low now that search is off the Data API); 401 ->
+        re-auth; 403 quota -> fail closed for the pass."""
         attempts = 5
         for attempt in range(attempts):
             headers = {"Authorization": f"Bearer {self._access()}"}
@@ -160,15 +150,11 @@ class YTMusicTarget(MirrorTarget):
                 raise TargetAuthError(f"YouTube refused {method} {path} (403 {reason or 'forbidden'}).")
             if r.status_code == 404 and ok404:
                 return None
-            if r.status_code == 429 and attempt < attempts - 1:
-                wait = float(r.headers.get("Retry-After") or 20) + random.uniform(1, 8)
-                log(f"  rate-limited by YouTube; waiting {int(wait)}s", tag=self.tag)
+            if r.status_code in (409, 429) and attempt < attempts - 1:
+                # 409 = transient write-conflict on rapid edits; 429 = brief rate
+                # blip. The write didn't apply, so a backed-off retry is safe.
+                wait = float(r.headers.get("Retry-After") or 0) + min(2 ** attempt, 15) + random.uniform(1, 4)
                 time.sleep(wait)
-                continue
-            if r.status_code == 409 and attempt < attempts - 1:
-                # Transient write-conflict the Data API throws on rapid playlist
-                # edits; the write didn't apply, so a backed-off retry is safe.
-                time.sleep(min(2 ** attempt, 15) + random.uniform(0, 2))
                 continue
             if r.status_code >= 500 and method == "GET" and attempt < attempts - 1:
                 time.sleep(min(2 ** attempt, 20) + random.uniform(0, 2))
@@ -242,50 +228,38 @@ class YTMusicTarget(MirrorTarget):
         best_id, method = self._search(track, primary)
         cache["search"][key] = best_id
         cache["dirty"] = True
-        polite_sleep(0.5)
+        polite_sleep(0.4)
         return best_id, method
 
     def _search(self, track, primary):
+        """Resolve via ytmusicapi's public search (no Data API quota). Prefer a
+        `songs` (art-track) match so tracks land as native songs; fall back to
+        `videos` only when no song scores acceptably."""
         queries = [f"{track['name']} {primary}".strip()]
         rom = f"{romanized(track['name'])} {romanized(primary)}".strip()
         if rom and rom != normalize_text(queries[0]):
-            queries.append(rom)  # romanized retry only runs if the first query misses
+            queries.append(rom)  # romanized retry for cross-script titles
         for query in queries:
-            items = self._request("GET", "search", params={
-                "part": "snippet", "q": query, "type": "video",
-                "videoCategoryId": "10", "maxResults": 10}).json().get("items", [])
-            durations = self._durations([it["id"]["videoId"] for it in items if it.get("id", {}).get("videoId")])
-            best = None  # (sort_key, videoId, is_topic)
-            for it in items:
-                vid = it.get("id", {}).get("videoId")
-                if not vid:
-                    continue
-                sn = it.get("snippet", {})
-                is_topic = bool(_TOPIC_RE.search(sn.get("channelTitle", "")))
-                cand_name = sn.get("title", "") if is_topic else _clean_title(sn.get("title", ""), track["artists"])
-                score, ok = score_candidate(track["name"], track["artists"], track["duration_ms"],
-                                            cand_name, _artist_from_channel(sn.get("channelTitle", "")),
-                                            durations.get(vid))
-                if ok:
-                    sort_key = score + (0.05 if is_topic else 0.0)  # nudge toward native art-tracks
-                    if best is None or sort_key > best[0]:
-                        best = (sort_key, vid, is_topic)
-            if best:
-                return best[1], ("song" if best[2] else "video")
-            polite_sleep(0.4)
+            for filt in ("songs", "videos"):
+                try:
+                    results = _with_backoff(lambda q=query, f=filt: self._ytm.search(q, filter=f, limit=8),
+                                            f"{filt}")
+                except Exception:
+                    results = []
+                best_id, best_score = None, -1.0
+                for cand in results or []:
+                    vid = cand.get("videoId")
+                    if not vid:
+                        continue
+                    cand_artist = ", ".join(a.get("name", "") for a in cand.get("artists") or []) or cand.get("author") or ""
+                    ds = cand.get("duration_seconds")
+                    score, ok = score_candidate(track["name"], track["artists"], track["duration_ms"],
+                                                cand.get("title", ""), cand_artist, ds * 1000 if ds else None)
+                    if ok and score > best_score:
+                        best_id, best_score = vid, score
+                if best_id:
+                    return best_id, ("song" if filt == "songs" else "video")
         return None, None
-
-    def _durations(self, video_ids):
-        """{videoId: duration_ms} via batched videos.list (1 unit per 50 ids)."""
-        out = {}
-        for i in range(0, len(video_ids), 50):
-            chunk = video_ids[i:i + 50]
-            if not chunk:
-                continue
-            for it in self._request("GET", "videos",
-                                    params={"part": "contentDetails", "id": ",".join(chunk)}).json().get("items", []):
-                out[it["id"]] = _duration_ms(it.get("contentDetails", {}).get("duration"))
-        return out
 
     def add(self, playlist, target_ids):
         for video_id in target_ids:  # one at a time, in order — append order is date-added order
