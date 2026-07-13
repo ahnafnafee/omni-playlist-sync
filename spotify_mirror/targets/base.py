@@ -256,13 +256,16 @@ def _merge(prev, cur, collapsed):
     return desired, plan
 
 
-def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, max_adds):
+def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, max_adds, link_key=None):
     """Reconcile one logical playlist across N provider peers, bidirectionally.
 
     playlists: {source: playlist dict}; caches: {source: resolution cache}.
+    `link_key`, when given (explicit pairing), addresses the canonical snapshot
+    state so differently-named paired playlists share one logical identity;
+    otherwise the casefolded display name is used (implicit same-name pairing).
     Returns a stats dict; `clean` is True when every side applied with no guard
     tripped (only then is the canonical snapshot advanced)."""
-    key = name.casefold()
+    key = link_key or name.casefold()
     started = time.monotonic()
     prev = {p.source: archive.get_playlist_state(songs, key, p.source) for p in peers}
 

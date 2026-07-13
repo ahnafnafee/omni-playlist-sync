@@ -7,7 +7,7 @@ import tempfile
 
 from spotify_mirror import archive
 from spotify_mirror.matching import spotify_track_keys
-from spotify_mirror.targets.base import _merge
+from spotify_mirror.targets.base import _merge, reconcile
 
 
 # --- merge: the safety-critical set logic (per-provider prev + cur) ----------
@@ -104,6 +104,49 @@ def test_dupe_guard_catches_same_song_variant():
     present = spotify_track_keys({"name": "Drowning (feat. Kodak Black)", "artists": ["BMike"]})
     incoming = spotify_track_keys({"name": "Drowning", "artists": ["BMike", "Kodak Black"]})
     assert incoming & present, "same song across providers must share a key -> guarded against duplicate add"
+
+
+class _FakePeer:
+    """Minimal MirrorTarget for a state-keying test: two peers already holding
+    the same ISRC track, so reconcile writes state without any add/remove."""
+
+    def __init__(self, source):
+        self.source = self.tag = self.name = source
+
+    def playlist_tracks(self, pl):
+        return [{"id": f"{self.source}1", "name": "Song", "artists": ["A"], "artist": "A",
+                 "duration_ms": 1000, "isrc": "ISRCX", "added_at": "2020"}]
+
+    def track_id(self, t):
+        return t.get("id")
+
+    def prefetch(self, norms, cache):
+        pass
+
+    def native_isrc_map(self, cache):
+        return {}
+
+    def resolve(self, norm, cache):
+        return None, None
+
+    def add(self, pl, ids):
+        pass
+
+    def remove(self, pl, raw):
+        pass
+
+
+def test_reconcile_uses_link_key_for_state():
+    conn = archive.connect(os.path.join(tempfile.mkdtemp(), "s.db"))
+    peers = [_FakePeer("spotify"), _FakePeer("apple")]
+    playlists = {"spotify": {"id": "s1"}, "apple": {"id": "a1"}}
+    caches = {s: {"isrc": {}, "search": {}, "dirty": False} for s in ("spotify", "apple")}
+    reconcile(peers, "Different Display Name", playlists, caches, conn,
+              execute=True, max_removals=25, max_adds=200, link_key="LINKED")
+    # canonical state persists under the link key, not the display name
+    assert archive.get_playlist_state(conn, "LINKED", "spotify") == {"i:ISRCX"}
+    assert archive.get_playlist_state(conn, "different display name", "spotify") == set()
+    conn.close()
 
 
 if __name__ == "__main__":
