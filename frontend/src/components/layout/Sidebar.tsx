@@ -72,9 +72,16 @@ export function Sidebar() {
               onClick={toggleCollapsed}
               title="Expand sidebar"
               aria-label="Expand sidebar"
-              className="flex size-9 items-center justify-center rounded-control text-text-2 transition-colors duration-fast hover:bg-surface-2 hover:text-text"
+              className="group grid size-9 place-items-center rounded-control transition-colors duration-fast hover:bg-surface-2"
             >
-              <LuPanelLeftOpen className="size-[18px]" aria-hidden="true" />
+              {/* logo by default; the expand affordance cross-fades in on hover */}
+              <span className="col-start-1 row-start-1 transition-opacity duration-fast group-hover:opacity-0">
+                <Logo />
+              </span>
+              <LuPanelLeftOpen
+                className="col-start-1 row-start-1 size-[18px] text-text-2 opacity-0 transition-opacity duration-fast group-hover:opacity-100"
+                aria-hidden="true"
+              />
             </button>
           ) : (
             <>
