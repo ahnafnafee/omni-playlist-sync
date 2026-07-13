@@ -67,3 +67,34 @@ def push_covers(playlists):
             log_note(f"{pushed} cover(s) set", tag=TAG)
     except Exception as e:
         log_warn(f"cover push failed: {e!r}", tag=TAG)
+
+
+def list_playlists():
+    """[{id, name, count, image}] of playlists on the Jellyfin server, for the
+    web Browse view. Read-only — Jellyfin isn't a sync target, so it's not in the
+    targets registry; this lists what's there. Empty list if unconfigured/unreachable."""
+    url, key = os.getenv("JELLYFIN_URL"), os.getenv("JELLYFIN_API_KEY")
+    if not (url and key):
+        return []
+    url = url.rstrip("/")
+    uid = os.getenv("JELLYFIN_USER_ID")
+    path = f"/Users/{uid}/Items" if uid else "/Items"
+    try:
+        r = requests.get(url + path, headers={"X-Emby-Token": key}, timeout=30,
+                         params={"IncludeItemTypes": "Playlist", "Recursive": "true",
+                                 "Fields": "ChildCount"})
+        r.raise_for_status()
+    except Exception as e:
+        log_warn(f"playlist list failed: {e!r}", tag=TAG)
+        return []
+    rows = []
+    for item in r.json().get("Items", []):
+        iid, name = item.get("Id"), (item.get("Name") or "").strip()
+        if not (iid and name):
+            continue
+        has_primary = (item.get("ImageTags") or {}).get("Primary")
+        # Jellyfin serves item images without a token, so the browser can load
+        # this URL directly; omit it when the playlist has no Primary image.
+        rows.append({"id": iid, "name": name, "count": item.get("ChildCount"),
+                     "image": f"{url}/Items/{iid}/Images/Primary" if has_primary else ""})
+    return rows

@@ -52,6 +52,11 @@ class PlaylistService:
     def browse(self, provider_id):
         """[{id, name, count}] for one connected provider (empty if unconfigured)."""
         self._settings.apply_to_env()
+        if provider_id == "jellyfin":
+            # Jellyfin is browse-only (cover-push destination, not a sync target),
+            # so it lists via its own API rather than the targets registry.
+            from ..engine import jellyfin
+            return sorted(jellyfin.list_playlists(), key=lambda r: (r["name"] or "").casefold())
         opts = parse_args([])
         sp = None
         if provider_id == "spotify":
