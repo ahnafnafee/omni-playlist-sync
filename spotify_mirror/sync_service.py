@@ -28,6 +28,7 @@ class SyncService:
         self._task = None
         self._stopping = False
         self._last_summary = None
+        self._lock = asyncio.Lock()  # one engine writer at a time (syncs + transfers)
 
     async def run_now(self, execute=False):
         # _running is set synchronously right after the check (no await between),
@@ -37,12 +38,13 @@ class SyncService:
             return
         self._running = True
         try:
-            self._settings.apply_to_env()
-            opts = parse_args(["--execute"] if execute else [])
-            self._emit("section", f"pass started ({'execute' if execute else 'dry run'})", "sync")
-            summary = await _run_pass_async(opts)
-            self._last_summary = summary
-            self._emit("summary", "pass finished", "sync", summary)
+            async with self._lock:  # serialize with transfers
+                self._settings.apply_to_env()
+                opts = parse_args(["--execute"] if execute else [])
+                self._emit("section", f"pass started ({'execute' if execute else 'dry run'})", "sync")
+                summary = await _run_pass_async(opts)
+                self._last_summary = summary
+                self._emit("summary", "pass finished", "sync", summary)
         except asyncio.CancelledError:
             raise
         except BaseException as e:  # a bad pass must never kill the scheduler
@@ -50,6 +52,12 @@ class SyncService:
             self._emit("warn", f"pass failed: {e!r}", "sync")
         finally:
             self._running = False
+
+    async def run_exclusive(self, fn):
+        """Run a blocking engine op (a transfer) serialized with syncs — it queues
+        behind any in-flight pass rather than overlapping it."""
+        async with self._lock:
+            return await asyncio.to_thread(fn)
 
     async def start(self):
         self._stopping = False
