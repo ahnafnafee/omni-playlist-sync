@@ -1,0 +1,154 @@
+/* ============================================================
+   OMNI PLAYLIST SYNC — design tokens · spec no. 001 rev A
+   Tailwind CSS v4 · paste into src/index.css
+   Light values are the defaults; .dark overrides them.
+   Fonts (bundled, no CDN): @fontsource/schibsted-grotesk,
+   @fontsource/instrument-serif, @fontsource/ibm-plex-mono
+   ============================================================ */
+
+@import "tailwindcss";
+
+/* class-based dark mode with prefers-color-scheme as the boot default */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ---- type ---- */
+  --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, serif;          /* display moments only */
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  /* ---- surfaces (light) ---- */
+  --color-bg: #F3F0E9;             /* page */
+  --color-surface: #FFFDF8;        /* cards */
+  --color-surface-2: #F6F2EA;      /* nested / hover / docks */
+  --color-inset: #EAE5DB;          /* wells: feed, code, pair-code */
+  --color-field: #FFFEFB;          /* inputs */
+  --color-border: #E1DACE;
+  --color-border-strong: #C6BEAF;
+  --color-overlay: rgb(30 25 20 / 0.45);
+
+  /* ---- text ---- */
+  --color-text: #1C1915;
+  --color-text-2: #524C43;
+  --color-text-3: #716A5F;
+
+  /* ---- accent · Signal Teal (recommended default) ---- */
+  --color-accent: #0E7D85;
+  --color-accent-hover: #0B6B72;
+  --color-accent-active: #095A60;
+  --color-accent-soft: rgb(14 125 133 / 0.10);
+  --color-on-accent: #FFFFFF;
+
+  /* ---- semantic (each with a -soft tint) ---- */
+  --color-success: #1B7F4C;  --color-success-soft: rgb(27 127 76 / 0.11);   /* add */
+  --color-danger:  #BC3D30;  --color-danger-soft:  rgb(188 61 48 / 0.10);   /* remove */
+  --color-warning: #8F6A12;  --color-warning-soft: rgb(143 106 18 / 0.12);  /* hold */
+  --color-neutral: #6E675E;  --color-neutral-soft: rgb(110 103 94 / 0.10);  /* miss */
+  --color-info:    #2F66A8;  --color-info-soft:    rgb(47 102 168 / 0.11);
+
+  /* ---- service identity · dots + badges only, never buttons ---- */
+  --color-svc-spotify:  #128F43;  --color-svc-spotify-soft:  rgb(18 143 67 / 0.11);
+  --color-svc-apple:    #D93043;  --color-svc-apple-soft:    rgb(217 48 67 / 0.10);
+  --color-svc-ytmusic:  #C43227;  --color-svc-ytmusic-soft:  rgb(196 50 39 / 0.10);
+  --color-svc-jellyfin: #7A58C5;  --color-svc-jellyfin-soft: rgb(122 88 197 / 0.11);
+
+  /* ---- radii · squarer = steadier ---- */
+  --radius-chip: 6px;      /* chips, glyph tiles */
+  --radius-control: 8px;   /* buttons, inputs, selects */
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  /* pills: rounded-full, reserved for status */
+
+  /* ---- shadows (weight in light theme; dark leans on borders) ---- */
+  --shadow-sm: 0 1px 2px rgb(43 36 26 / 0.06), 0 4px 14px -6px rgb(43 36 26 / 0.10);
+  --shadow-md: 0 6px 18px -6px rgb(43 36 26 / 0.16);
+  --shadow-lg: 0 24px 64px -16px rgb(43 36 26 / 0.30);
+
+  /* ---- motion ---- */
+  --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 120ms;   /* hover, press */
+  --duration-base: 200ms;   /* fades, toggles, feed rows in */
+  --duration-slow: 320ms;   /* modals, drawer */
+}
+
+/* ---- dark theme overrides · warm charcoal ---- */
+.dark {
+  --color-bg: #121010;
+  --color-surface: #1A1716;
+  --color-surface-2: #231F1D;
+  --color-inset: #0B0A09;
+  --color-field: #161312;
+  --color-border: #2C2724;
+  --color-border-strong: #403A35;
+  --color-overlay: rgb(8 6 5 / 0.64);
+
+  --color-text: #F1EDE5;
+  --color-text-2: #B7AEA2;
+  --color-text-3: #8D8478;
+
+  --color-accent: #4FC0C8;
+  --color-accent-hover: #6FD0D6;
+  --color-accent-active: #3AA9B2;
+  --color-accent-soft: rgb(79 192 200 / 0.13);
+  --color-on-accent: #072A2D;
+
+  --color-success: #5FC985;  --color-success-soft: rgb(95 201 133 / 0.13);
+  --color-danger:  #EF8172;  --color-danger-soft:  rgb(239 129 114 / 0.13);
+  --color-warning: #E2B45F;  --color-warning-soft: rgb(226 180 95 / 0.14);
+  --color-neutral: #9A9186;  --color-neutral-soft: rgb(154 145 134 / 0.13);
+  --color-info:    #7FA9DE;  --color-info-soft:    rgb(127 169 222 / 0.13);
+
+  --color-svc-spotify:  #3BCE6E;  --color-svc-spotify-soft:  rgb(59 206 110 / 0.13);
+  --color-svc-apple:    #FA5C71;  --color-svc-apple-soft:    rgb(250 92 113 / 0.12);
+  --color-svc-ytmusic:  #F4453E;  --color-svc-ytmusic-soft:  rgb(244 69 62 / 0.12);
+  --color-svc-jellyfin: #AE8CEC;  --color-svc-jellyfin-soft: rgb(174 140 236 / 0.13);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow-md: 0 6px 18px -6px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 24px 64px -16px rgb(0 0 0 / 0.65);
+}
+
+/* ---- accent alternates (swap the accent block above) ----
+   B · Ultramarine   light #2E55BE / hover #2746A6 / active #1F398C / on #FFFFFF
+                     dark  #82A6F2 / hover #9BB8F6 / active #6890E8 / on #0B1B38
+   C · Brass         light #8A651B / hover #765714 / active #644A10 / on #FFFFFF
+                     dark  #DFAE58 / hover #EABF74 / active #CB9840 / on #2A1E07
+   NOTE: choosing Brass requires re-tuning --color-warning toward
+   orange-red (light #A14D0E · dark #E89A5B) to keep hold ≠ accent.
+   ---------------------------------------------------------- */
+
+/* ---- base ---- */
+@layer base {
+  html { font-family: var(--font-sans); }
+  body { background: var(--color-bg); color: var(--color-text); }
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+    border-radius: var(--radius-control);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ---- component crib sheet (classnames, not css) --------------
+   Button      primary:      bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-active
+               secondary:    bg-surface-2 border border-border-strong text-text
+               ghost:        text-text-2 hover:bg-surface-2
+               danger-ghost: text-danger bg-danger-soft
+               sizes:        h-8 (sm) · h-10 (md) · h-12 (lg, mobile primary) · rounded-(--radius-control)
+   StatusPill  h-[26px] rounded-full px-2.5 text-[12.5px] font-semibold
+               connected bg-success-soft text-success · expired warning · unconfigured neutral · error danger
+   Card        bg-surface border border-border rounded-(--radius-card) shadow-(--shadow-sm) p-5
+   TextField   h-[42px] (h-11 + text-base below md) bg-field border-border-strong rounded-(--radius-control)
+               focus: border-accent + focus ring · error: border-danger + helper text-danger
+   Modal       bg-surface border-border-strong rounded-(--radius-modal) shadow-(--shadow-lg)
+               footer on bg-surface-2 · bottom sheet below md
+   FeedRow     grid-cols-[22px_1fr_auto_auto] · glyph tile 20px rounded-(--radius-chip)
+               add:+ success · remove:− danger · hold:~ warning · miss:× neutral · warn:! warning
+   CountChip   font-mono text-xs font-semibold h-6 px-2 rounded-(--radius-chip) bg-*-soft text-*
+   -------------------------------------------------------------- */
