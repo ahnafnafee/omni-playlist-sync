@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+/* Class-based dark mode: toggled by the `dark` class on <html> (see
+   useDarkMode), not solely the OS preference, so users can override it. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:
+    ui-monospace, 'Cascadia Code', 'Segoe UI Mono', Consolas, monospace;
+
+  /* Brand accent — used for primary actions, links, focus rings, the active
+     nav tab. Kept distinct from the semantic add/remove/hold/miss palette
+     used for live-feed event kinds and data visualizations. */
+  --color-brand-50: #f4f2ff;
+  --color-brand-100: #ebe7ff;
+  --color-brand-200: #d9d2ff;
+  --color-brand-300: #bcadff;
+  --color-brand-400: #9c82ff;
+  --color-brand-500: #7c5cff;
+  --color-brand-600: #6a3ffa;
+  --color-brand-700: #5a2fe0;
+  --color-brand-800: #4a27b5;
+  --color-brand-900: #3d238e;
+  --color-brand-950: #251556;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+html,
+body {
+  /* Defense in depth against sideways page scroll on narrow viewports.
+     `clip` (not `hidden`) deliberately — per the CSS Overflow spec, pairing
+     `overflow-y: visible` (the default, left alone here) with
+     `overflow-x: hidden` forces the y-axis to compute as `auto`, turning
+     `body` into an unexpected extra scroll container that can break
+     `position: sticky` children (the nav bar). `clip` doesn't trigger that
+     coupling. This is a safety net, not a substitute for components sizing
+     themselves to fit — see individual component comments for the real fixes. */
+  overflow-x: clip;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Slim, low-contrast scrollbars for the live event feed panel. */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-slate-300) transparent;
+}
+.dark .thin-scrollbar {
+  scrollbar-color: var(--color-slate-700) transparent;
+}
+.thin-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-300);
+  border-radius: 9999px;
+}
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-700);
+}
+
+/* Respect reduced-motion preferences for the pulsing "running" indicator and
+   other transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

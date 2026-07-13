@@ -1,0 +1,112 @@
+// Shared types mirroring the FastAPI backend's JSON contract exactly
+// (spotify_mirror/web/routers/*.py + spotify_mirror/accounts/*.py). Keep this
+// file in sync with the backend if the contract ever changes shape.
+
+export type AuthKind = 'oauth_redirect' | 'oauth_device' | 'token_paste' | 'api_key'
+
+export type AccountState = 'connected' | 'expired' | 'unconfigured' | 'error'
+
+export interface AccountField {
+  key: string
+  label: string
+  secret: boolean
+  help: string
+  required: boolean
+}
+
+export interface Account {
+  id: string
+  name: string
+  auth_kind: AuthKind
+  fields: AccountField[]
+  state: AccountState
+  detail: string | null
+}
+
+/** Shared shape for the plain `{ok: true}` acks (config save, settings save,
+ * disconnect). */
+export interface OkResponse {
+  ok: true
+}
+
+export interface ConnectRedirectResponse {
+  kind: 'redirect'
+  url: string
+  redirect_uri: string
+}
+
+export interface ConnectDeviceResponse {
+  kind: 'device'
+  user_code: string
+  verification_url: string
+  device_code: string
+  interval: number
+}
+
+/** token_paste / api_key connect responses submit values directly and get a
+ * status back instead of a redirect/device hand-off. */
+export interface ConnectDirectResponse {
+  kind: 'token_paste' | 'api_key'
+  state: AccountState
+  detail: string | null
+}
+
+export type ConnectResponse = ConnectRedirectResponse | ConnectDeviceResponse | ConnectDirectResponse
+
+export interface PollResponse {
+  state: AccountState
+  detail: string | null
+}
+
+/** GET/PUT /api/settings — arbitrary KEY:value config; secrets are masked out
+ * server-side and never round-tripped to the browser. */
+export type Settings = Record<string, string>
+
+export interface TargetSummary {
+  name: string
+  added: number
+  removed: number
+  missing: number
+  held: number
+  deferred: number
+  created: number
+  skipped: number
+}
+
+export interface PassSummary {
+  mode: string
+  execute: boolean
+  duration_s: number
+  ok: boolean
+  error: string | null
+  per_target: TargetSummary[]
+}
+
+export interface SyncStatus {
+  running: boolean
+  scheduled: boolean
+  interval_s: number
+  last: PassSummary | null
+}
+
+export interface RunResponse {
+  queued: true
+}
+
+export interface ScheduleRequest {
+  interval?: string
+  action?: 'pause' | 'resume'
+}
+
+/** One line of the live SSE feed. `data` carries kind-specific extras (e.g.
+ * `{dry: boolean}` for add/remove, `{detail: string}` for section) that the
+ * UI doesn't need to render today but may display opportunistically. */
+export type EventKind = 'add' | 'remove' | 'hold' | 'miss' | 'download' | 'note' | 'warn' | 'summary' | 'section'
+
+export interface SyncEvent {
+  ts: number
+  kind: EventKind
+  tag: string
+  message: string
+  data?: Record<string, unknown> | null
+}
