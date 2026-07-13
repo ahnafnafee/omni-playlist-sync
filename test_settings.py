@@ -1,7 +1,9 @@
 """SettingsStore: json + managed env file; wizard saves survive engine reload."""
 
 import os
+import stat
 
+import pytest
 from dotenv import load_dotenv
 
 from spotify_mirror.settings import SettingsStore
@@ -29,6 +31,14 @@ def test_none_values_ignored(tmp_path):
     store.save({"A": "1", "B": None})
     assert store.get("A") == "1"
     assert "B" not in store.load()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes are ignored on Windows")
+def test_credential_files_owner_only(tmp_path):
+    store = SettingsStore(dir=tmp_path)
+    store.save({"APPLE_BEARER_TOKEN": "secret"})
+    for p in (store._json, store.env_path):
+        assert stat.S_IMODE(os.stat(p).st_mode) == 0o600
 
 
 def test_env_file_quotes_spaces(tmp_path, monkeypatch):
