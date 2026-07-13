@@ -1,7 +1,9 @@
 import { cn } from '@/lib/cn'
-import { KIND_STYLES, tagDot } from '@/lib/constants'
+import { KIND_STYLES, serviceLogoId, tagDot, tagLabel, tagText } from '@/lib/constants'
 import { formatClock } from '@/lib/format'
 import type { SyncEvent } from '@/types'
+
+import { ServiceLogo } from '../ui/ServiceLogo'
 
 /** FeedRow — glyph tile · message · service tag · mono clock, per the design
  * spec (add + · remove − · hold ~ · miss × · warn !). Uses flexbox rather
@@ -11,6 +13,7 @@ import type { SyncEvent } from '@/types'
  * spec at `sm` and up either way. */
 export function EventRow({ event }: { event: SyncEvent }) {
   const style = KIND_STYLES[event.kind]
+  const logoId = serviceLogoId(event.tag)
 
   if (event.kind === 'section') {
     return (
@@ -39,8 +42,19 @@ export function EventRow({ event }: { event: SyncEvent }) {
           glyph/tag/clock on narrow screens; from `sm` up it sits inline. */}
       <span className={cn('min-w-0 basis-full break-words sm:flex-1 sm:basis-0', style.text)}>{event.message}</span>
       <span className="inline-flex w-fit shrink-0 items-center gap-1.5 font-mono text-[11px] text-text-3">
-        <span className={cn('size-[7px] shrink-0 rounded-full', tagDot(event.tag))} aria-hidden="true" />
-        {event.tag}
+        {logoId ? (
+          <>
+            <ServiceLogo service={logoId} className={cn('size-3.5 shrink-0', tagText(event.tag))} />
+            {/* The icon alone (no visible label) needs a text alternative —
+                ServiceLogo's own glyphs are aria-hidden. */}
+            <span className="sr-only">{tagLabel(event.tag)}</span>
+          </>
+        ) : (
+          <>
+            <span className={cn('size-[7px] shrink-0 rounded-full', tagDot(event.tag))} aria-hidden="true" />
+            {event.tag}
+          </>
+        )}
       </span>
       <span className="shrink-0 font-mono text-[11px] text-text-3">{formatClock(event.ts)}</span>
     </li>
