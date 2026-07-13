@@ -14,6 +14,15 @@ def test_build_one_known_dispatches(monkeypatch):
     assert targets.build_one("spotify", parse_args([])) is sentinel
 
 
+def test_build_targets_respects_providers(monkeypatch):
+    # Deselecting a provider (via opts.providers) excludes it from one-way targets.
+    monkeypatch.setitem(targets._REGISTRY, "apple", lambda o, sp: "APPLE")
+    monkeypatch.setitem(targets._REGISTRY, "ytmusic", lambda o, sp: "YT")
+    opts = parse_args([])
+    opts.providers = "spotify,apple"  # ytmusic left out
+    assert targets.build_targets(opts) == ["APPLE"]
+
+
 def test_browse_normalizes_rows(monkeypatch, tmp_path):
     from spotify_mirror.services.playlists import PlaylistService
     from spotify_mirror.services.settings import SettingsStore

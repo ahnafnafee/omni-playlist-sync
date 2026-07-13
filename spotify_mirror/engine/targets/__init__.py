@@ -42,8 +42,10 @@ _SOURCE_ORDER = ["spotify", "apple", "ytmusic"]
 
 
 def build_targets(opts):
-    """One-way targets available this run (Spotify is the source, not a target)."""
-    return [t for src in _SOURCE_ORDER if src != "spotify"
+    """One-way targets this run (Spotify is the source, not a target), limited to
+    the providers the user opted into (opts.providers)."""
+    wanted = {s.strip() for s in (opts.providers or "").split(",") if s.strip()}
+    return [t for src in _SOURCE_ORDER if src != "spotify" and src in wanted
             for t in (_REGISTRY[src](opts, None),) if t]
 
 
