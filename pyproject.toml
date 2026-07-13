@@ -12,6 +12,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "rapidfuzz>=3.9,<4",
     "requests>=2.32.5",
+    "spotifyscraper>=3.9,<4",
     "spotipy>=2.26.0",
     "uvicorn>=0.32",
     "ytmusicapi>=1.12,<2",

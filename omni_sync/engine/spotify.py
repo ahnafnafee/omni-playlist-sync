@@ -16,8 +16,9 @@ import requests
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
+from . import spotify_web
 from .config import DEFAULT_SPOTIFY_REDIRECT_URI, REQUEST_TIMEOUT, required_env
-from .logs import log
+from .logs import log, log_note, log_warn
 
 # Connection-level failures spotipy's status-code retry doesn't cover.
 _TRANSIENT = (
@@ -105,7 +106,7 @@ def playlist_item_track(item):
     return track
 
 
-def playlist_tracks(sp, playlist_id):
+def _playlist_tracks_api(sp, playlist_id):
     tracks = []
     results = _retry(
         lambda: sp.playlist_items(playlist_id, market="from_token", additional_types=("track",), limit=100),
@@ -129,3 +130,24 @@ def playlist_tracks(sp, playlist_id):
         page = results
         results = _retry(lambda: sp.next(page), "tracks page") if results.get("next") else None
     return tracks
+
+
+def playlist_tracks(sp, playlist_id):
+    """Playlist tracks via the official API, falling back to the web-player read
+    on a 403 — which is what the official API returns for the tracks of a followed
+    (non-owned) playlist under a Development-Mode app. The fallback (SpotifyScraper)
+    is opt-outable via SPOTIFY_WEB_FALLBACK; on any fallback failure the original
+    403 is re-raised so the caller's safety guards still apply."""
+    try:
+        return _playlist_tracks_api(sp, playlist_id)
+    except spotipy.SpotifyException as e:
+        if e.http_status == 403 and spotify_web.enabled():
+            log_note(f"{playlist_id}: official read forbidden (403); trying web-player fallback", tag="spotify")
+            try:
+                tracks = spotify_web.playlist_tracks(playlist_id)
+                log_note(f"{playlist_id}: web-player fallback read {len(tracks)} tracks", tag="spotify")
+                return tracks
+            except Exception as we:
+                log_warn(f"{playlist_id}: web-player fallback failed ({we!r})", tag="spotify")
+                raise e
+        raise
