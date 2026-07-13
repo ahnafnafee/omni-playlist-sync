@@ -34,6 +34,9 @@ uv run uvicorn spotify_mirror.web:app --host 0.0.0.0 --port 8080
 - **Connect accounts in the browser** — one-click OAuth for Spotify and YouTube
   Music (you supply your own app's client id/secret once), guided token paste for
   Apple Music, an API key for Jellyfin. No hand-editing `.env`.
+- **Pair playlists across services** — browse each service's playlists and
+  explicitly link differently-named ones (e.g. Spotify "Workout" ↔ Apple "Gym
+  Music"), overriding the default same-name matching.
 - **Live sync view** — a real-time feed of matches, adds, removals, and holds as a
   pass runs, with per-service counters.
 - **Run now or on a schedule** — the web app owns the schedule and one-off runs;

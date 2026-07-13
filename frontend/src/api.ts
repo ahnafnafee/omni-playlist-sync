@@ -4,8 +4,11 @@
 import type {
   Account,
   ConnectResponse,
+  LinkUpsertRequest,
   OkResponse,
+  PlaylistLink,
   PollResponse,
+  ProviderPlaylist,
   RunResponse,
   ScheduleRequest,
   Settings,
@@ -73,6 +76,15 @@ export const api = {
   runSync: (execute: boolean) => request<RunResponse>(`/api/sync/run?execute=${execute ? 1 : 0}`, { method: 'POST' }),
   getSyncStatus: () => request<SyncStatus>('/api/sync/status'),
   setSchedule: (body: ScheduleRequest) => request<SyncStatus>('/api/sync/schedule', json(body)),
+
+  // Playlists (browse)
+  getPlaylists: (provider: string) =>
+    request<ProviderPlaylist[]>(`/api/playlists?provider=${encodeURIComponent(provider)}`),
+
+  // Links (cross-service pairings)
+  getLinks: () => request<PlaylistLink[]>('/api/links'),
+  upsertLink: (link: LinkUpsertRequest) => request<PlaylistLink>('/api/links', { method: 'PUT', body: JSON.stringify(link) }),
+  deleteLink: (id: string) => request<OkResponse>(`/api/links/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 }
 
 export function errorMessage(err: unknown): string {

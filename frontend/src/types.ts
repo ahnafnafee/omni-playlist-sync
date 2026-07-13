@@ -110,3 +110,39 @@ export interface SyncEvent {
   message: string
   data?: Record<string, unknown> | null
 }
+
+/** GET /api/playlists?provider=<id> — one entry per playlist on that service. */
+export interface ProviderPlaylist {
+  id: string
+  name: string
+  count: number
+}
+
+export type LinkDirection = 'oneway' | 'nway'
+
+/** Provider id -> playlist id, or `null` to create a new same-named playlist
+ * on that service. A provider absent from this map isn't part of the link. */
+export type LinkMembers = Record<string, string | null>
+
+/** GET /api/links entry — an explicit cross-service playlist pairing (for
+ * playlists that don't share a name, or to scope a sync to specific
+ * services). */
+export interface PlaylistLink {
+  id: string
+  name: string
+  members: LinkMembers
+  direction: LinkDirection
+  source: string | null
+  enabled: boolean
+}
+
+/** PUT /api/links body — omit `id` to create a new link; include it to
+ * update an existing one. */
+export interface LinkUpsertRequest {
+  id?: string
+  name: string
+  members: LinkMembers
+  direction: LinkDirection
+  source: string | null
+  enabled: boolean
+}
