@@ -8,6 +8,7 @@ import {
   LuMenu,
   LuPanelLeftClose,
   LuPanelLeftOpen,
+  LuRefreshCw,
   LuSettings2,
   LuX,
 } from 'react-icons/lu'
@@ -22,6 +23,7 @@ const NAV_ITEMS: Array<{ to: string; label: string; end: boolean; icon: IconType
   { to: '/', label: 'Dashboard', end: true, icon: LuLayoutDashboard },
   { to: '/accounts', label: 'Accounts', end: false, icon: LuLink2 },
   { to: '/playlists', label: 'Playlists', end: false, icon: LuListMusic },
+  { to: '/sync', label: 'Sync', end: false, icon: LuRefreshCw },
   { to: '/transfers', label: 'Transfers', end: false, icon: LuArrowLeftRight },
   { to: '/settings', label: 'Settings', end: false, icon: LuSettings2 },
 ]

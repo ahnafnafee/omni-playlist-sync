@@ -6,6 +6,7 @@ import Accounts from './pages/Accounts'
 import Dashboard from './pages/Dashboard'
 import Playlists from './pages/Playlists'
 import Settings from './pages/Settings'
+import Sync from './pages/Sync'
 import Transfers from './pages/Transfers'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/playlists" element={<Playlists />} />
+        <Route path="/sync" element={<Sync />} />
         <Route path="/transfers" element={<Transfers />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<NotFound />} />
