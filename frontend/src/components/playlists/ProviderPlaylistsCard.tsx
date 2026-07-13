@@ -70,16 +70,21 @@ export function ProviderPlaylistsCard({ account, entry }: { account: Account; en
               </span>
               <CoverArt image={p.image} />
               <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-text">{p.name}</span>
-              {p.owned === false && (
+              {p.owned === false ? (
+                // The count is the least essential thing here — it can't be
+                // copied either way — and dropping it is what keeps the name
+                // from being squeezed to nothing next to the cover art and
+                // this tag in the 4-across desktop grid.
                 <span
                   title={UNOWNED_PLAYLIST_REASON}
                   className="shrink-0 rounded-chip bg-neutral-soft px-2 py-0.5 font-mono text-[10px] font-semibold text-neutral"
                 >
                   Followed
                 </span>
-              )}
-              {formatTrackCount(p.count) && (
-                <span className="shrink-0 font-mono text-[11.5px] text-text-3">{formatTrackCount(p.count)}</span>
+              ) : (
+                formatTrackCount(p.count) && (
+                  <span className="shrink-0 font-mono text-[11.5px] text-text-3">{formatTrackCount(p.count)}</span>
+                )
               )}
             </li>
           ))}
