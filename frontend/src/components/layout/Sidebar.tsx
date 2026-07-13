@@ -17,7 +17,6 @@ import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed'
 import { cn } from '@/lib/cn'
 
 import { BrandMark } from '../ui/BrandMark'
-import { ThemeToggle } from './ThemeToggle'
 
 const NAV_ITEMS: Array<{ to: string; label: string; end: boolean; icon: IconType }> = [
   { to: '/', label: 'Dashboard', end: true, icon: LuLayoutDashboard },
@@ -61,9 +60,37 @@ export function Sidebar() {
           collapsed ? 'w-[68px]' : 'w-60',
         )}
       >
-        <div className={cn('flex h-16 shrink-0 items-center gap-2.5 border-b border-border', collapsed ? 'justify-center px-2' : 'px-4')}>
-          <Logo />
-          {!collapsed && <span className="truncate text-[15px] font-extrabold tracking-tight text-text">Omni Sync</span>}
+        <div
+          className={cn(
+            'flex h-16 shrink-0 items-center border-b border-border',
+            collapsed ? 'justify-center px-2' : 'gap-2.5 px-4',
+          )}
+        >
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              className="flex size-9 items-center justify-center rounded-control text-text-2 transition-colors duration-fast hover:bg-surface-2 hover:text-text"
+            >
+              <LuPanelLeftOpen className="size-[18px]" aria-hidden="true" />
+            </button>
+          ) : (
+            <>
+              <Logo />
+              <span className="truncate text-[15px] font-extrabold tracking-tight text-text">Omni Sync</span>
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+                className="ml-auto flex size-9 shrink-0 items-center justify-center rounded-control text-text-2 transition-colors duration-fast hover:bg-surface-2 hover:text-text"
+              >
+                <LuPanelLeftClose className="size-[18px]" aria-hidden="true" />
+              </button>
+            </>
+          )}
         </div>
 
         <nav aria-label="Primary" className="flex flex-1 flex-col gap-1 p-3">
@@ -93,24 +120,6 @@ export function Sidebar() {
           ))}
         </nav>
 
-        <div className="mt-auto flex shrink-0 flex-col gap-1.5 border-t border-border p-3">
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cn(
-              'flex h-9 items-center gap-2 rounded-control text-text-2 transition-colors duration-fast hover:bg-surface-2 hover:text-text',
-              collapsed ? 'justify-center px-0' : 'px-2.5',
-            )}
-          >
-            {collapsed ? <LuPanelLeftOpen className="size-[18px] shrink-0" aria-hidden="true" /> : <LuPanelLeftClose className="size-[18px] shrink-0" aria-hidden="true" />}
-            {!collapsed && <span className="text-[12.5px] font-semibold">Collapse</span>}
-          </button>
-          <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-start px-0.5 pt-1')}>
-            <ThemeToggle variant="icon" />
-          </div>
-        </div>
       </aside>
 
       {/* Mobile: slim top bar + dropdown drawer */}
@@ -152,9 +161,6 @@ export function Sidebar() {
               {item.label}
             </NavLink>
           ))}
-          <div className="mt-2.5 border-t border-border px-3.5 pt-3">
-            <ThemeToggle variant="row" />
-          </div>
         </nav>
       )}
     </>

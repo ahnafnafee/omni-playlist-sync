@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { api, errorMessage } from '@/api'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { RadioCard } from '@/components/ui/RadioCard'
@@ -88,6 +89,13 @@ export default function Settings() {
       </div>
 
       {error && <p className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger">Could not load settings: {error}</p>}
+
+      <SettingsGroup label="APPEARANCE">
+        <ThemeToggle />
+        <p className="text-xs leading-relaxed text-text-3">
+          Applies instantly and is remembered on this device — separate from the sync settings below.
+        </p>
+      </SettingsGroup>
 
       {loading && !form ? (
         <LoadingStatus label="Loading settings…">
