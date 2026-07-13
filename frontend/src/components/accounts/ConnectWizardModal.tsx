@@ -183,6 +183,8 @@ function parseHeaderPaste(raw: string, fields: AccountField[]): { values: Record
 
 // How long the "Connected!" confirmation shows before the wizard auto-closes.
 const SUCCESS_CLOSE_DELAY_MS = 1100
+const REDIRECT_POLL_INTERVAL_MS = 2500
+const REDIRECT_POLL_TIMEOUT_MS = 5 * 60 * 1000
 
 export function ConnectWizardModal({ account, open, onClose, onConnected }: Props) {
   const [values, setValues] = useState<Record<string, string>>({})
@@ -256,6 +258,40 @@ export function ConnectWizardModal({ account, open, onClose, onConnected }: Prop
       if (timer !== undefined) window.clearTimeout(timer)
     }
   }, [deviceInfo, account.id])
+
+  // oauth_redirect: the actual OAuth callback lands in the new tab we
+  // opened, not this one, so poll the account list until this account
+  // flips to connected. Continues even if the modal is closed (mirroring
+  // the oauth_device loop above); a fresh connect attempt (new
+  // redirectInfo) resets it. Capped so an abandoned attempt doesn't poll
+  // forever.
+  useEffect(() => {
+    if (!redirectInfo) return
+    let cancelled = false
+    let timer: number | undefined
+    let elapsed = 0
+
+    async function poll() {
+      try {
+        const accounts = await api.getAccounts()
+        if (cancelled) return
+        if (accounts.find((a) => a.id === account.id)?.state === 'connected') {
+          setShowSuccess(true)
+          return
+        }
+        elapsed += REDIRECT_POLL_INTERVAL_MS
+        if (elapsed < REDIRECT_POLL_TIMEOUT_MS) timer = window.setTimeout(() => void poll(), REDIRECT_POLL_INTERVAL_MS)
+      } catch (err) {
+        if (!cancelled) setError(errorMessage(err))
+      }
+    }
+
+    timer = window.setTimeout(() => void poll(), REDIRECT_POLL_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [redirectInfo, account.id])
 
   function setFieldValue(key: string, value: string) {
     setValues((prev) => ({ ...prev, [key]: value }))

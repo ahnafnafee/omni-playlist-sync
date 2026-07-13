@@ -162,47 +162,49 @@ function SourceChip({ account, selected, onSelect }: { account: Account; selecte
   )
 }
 
-/** Horizontal, always-clickable step tabs — this is a config people revisit,
- * not a linear onboarding wizard, so nothing here is gated behind completing
- * earlier steps. Scrolls rather than wraps below `sm` so a step's label
- * never breaks mid-word into a cramped two-line chip. */
+/** Compact numbered stepper — always fits the modal at any width (no
+ * horizontal scroll): small circular markers connected by lines that
+ * flex-grow to fill the row, with the label shown only for the current step
+ * (as a caption below) rather than on every marker. This is a config people
+ * revisit, not a linear onboarding wizard, so every marker stays clickable
+ * regardless of visited state. */
 function StepTabs({ current, visited, onJump }: { current: number; visited: Set<number>; onJump: (i: number) => void }) {
   return (
-    <div role="radiogroup" aria-label="Sync setup steps" className="thin-scrollbar flex items-center gap-1.5 overflow-x-auto pb-1">
-      {STEPS.map((s, i) => {
-        const isCurrent = i === current
-        const isVisited = visited.has(i) && !isCurrent
-        return (
-          <div key={s.label} className="flex shrink-0 items-center gap-1.5">
-            {i > 0 && <span className="h-px w-4 shrink-0 bg-border" aria-hidden="true" />}
-            <button
-              type="button"
-              role="radio"
-              aria-checked={isCurrent}
-              onClick={() => onJump(i)}
-              className={cn(
-                'flex shrink-0 items-center gap-2 rounded-full border-[1.5px] py-1.5 pl-1.5 pr-3 text-[12.5px] font-semibold transition-colors duration-fast',
-                isCurrent
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : isVisited
-                    ? 'border-border-strong text-text-2 hover:bg-surface-2'
-                    : 'border-border text-text-3 hover:border-border-strong hover:text-text-2',
-              )}
-            >
-              <span
-                aria-hidden="true"
+    <div className="flex flex-col gap-2">
+      <div role="radiogroup" aria-label="Sync setup steps" className="flex items-center">
+        {STEPS.map((s, i) => {
+          const isCurrent = i === current
+          const isVisited = visited.has(i) && !isCurrent
+          return (
+            <div key={s.label} className={cn('flex items-center', i < STEPS.length - 1 && 'flex-1')}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={isCurrent}
+                aria-label={s.label}
+                title={s.label}
+                onClick={() => onJump(i)}
                 className={cn(
-                  'flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold',
-                  isCurrent ? 'bg-accent text-on-accent' : isVisited ? 'bg-success-soft text-success' : 'bg-surface-2 text-text-3',
+                  'flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold transition-colors duration-fast',
+                  isCurrent
+                    ? 'bg-accent text-on-accent ring-2 ring-accent/25'
+                    : isVisited
+                      ? 'bg-success-soft text-success hover:bg-success-soft/70'
+                      : 'bg-surface-2 text-text-3 hover:bg-border',
                 )}
               >
-                {isVisited ? <LuCheck className="size-3" strokeWidth={3} /> : i + 1}
-              </span>
-              {s.label}
-            </button>
-          </div>
-        )
-      })}
+                {isVisited ? <LuCheck className="size-3.5" strokeWidth={3} aria-hidden="true" /> : i + 1}
+              </button>
+              {i < STEPS.length - 1 && (
+                <span aria-hidden="true" className={cn('mx-1 h-px flex-1', i < current ? 'bg-success/50' : 'bg-border')} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-center font-mono text-[11px] font-semibold tracking-wide text-text-2">
+        Step {current + 1} of {STEPS.length} · {STEPS[current].label}
+      </p>
     </div>
   )
 }
