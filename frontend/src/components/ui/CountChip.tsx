@@ -21,7 +21,7 @@ export function CountChip({ tone, sign = '', value, className }: CountChipProps)
   return (
     <span
       className={cn(
-        'inline-flex h-6 items-center rounded-chip px-2 font-mono text-xs font-semibold tabular-nums',
+        'inline-flex h-6 items-center rounded-chip px-2 font-mono text-xs font-bold tabular-nums',
         TONE_CLASSES[tone],
         className,
       )}

@@ -17,7 +17,10 @@ export const BUTTON_SIZE_CLASSES: Record<ButtonSize, string> = {
 }
 
 export const BUTTON_VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-accent text-on-accent hover:bg-accent-hover active:bg-accent-active',
+  // The machined-key bevel (inset highlight above, shade below) marks this
+  // as the one solid, highest-commitment action in a view — a key, not a
+  // link. Disabled state keeps the bevel; opacity alone reads as "off".
+  primary: 'bg-accent text-on-accent shadow-(--shadow-key) hover:bg-accent-hover active:bg-accent-active',
   secondary: 'bg-surface-2 border border-border-strong text-text hover:bg-surface',
   ghost: 'text-text-2 hover:bg-surface-2',
   // A solid red button doesn't exist in this app — every destructive action

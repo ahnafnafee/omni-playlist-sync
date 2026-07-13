@@ -51,6 +51,11 @@ export function ProviderPlaylistsCard({ account, entry }: { account: Account; en
         <div className="flex w-full items-center gap-2">
           {logoId && <ServiceLogo service={logoId} className={cn('size-4 shrink-0', tagText(account.id))} />}
           <h3 className="min-w-0 flex-1 truncate text-base font-bold text-text">{account.name}</h3>
+          {connected && entry && entry.playlists.length > 0 && (
+            <span className="shrink-0 font-mono text-[11px] text-text-3">
+              {entry.playlists.length} playlist{entry.playlists.length === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
         <StatusPill state={account.state} />
       </div>
@@ -78,8 +83,11 @@ export function ProviderPlaylistsCard({ account, entry }: { account: Account; en
         <p className="text-sm text-danger">Could not load playlists: {entry.error}</p>
       ) : entry.playlists.length > 0 ? (
         <ul className="flex flex-col divide-y divide-border">
-          {entry.playlists.map((p) => (
+          {entry.playlists.map((p, i) => (
             <li key={p.id} className="flex items-center gap-3 py-2">
+              <span className="shrink-0 font-mono text-[10px] text-text-3" aria-hidden="true">
+                {String(i + 1).padStart(2, '0')}
+              </span>
               <CoverArt playlist={p} />
               <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-text">{p.name}</span>
               <span className="shrink-0 font-mono text-[11.5px] text-text-3">

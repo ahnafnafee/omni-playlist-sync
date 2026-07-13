@@ -11,8 +11,8 @@ interface EmptyStateProps {
   className?: string
 }
 
-/** Dashed border says "nothing is wrong" — empty states get the serif voice
- * (one calm italic line) rather than reading as an error. */
+/** Dashed border says "nothing is wrong" — empty states get the display
+ * voice (one calm, heavy, stretched line) rather than reading as an error. */
 export function EmptyState({ title, description, action, className }: EmptyStateProps) {
   return (
     <div
@@ -24,7 +24,7 @@ export function EmptyState({ title, description, action, className }: EmptyState
       <span className="flex size-9 items-center justify-center rounded-chip bg-surface-2 pb-2">
         <BrandMark barClassName="bg-text-3" />
       </span>
-      <p className="font-serif text-lg italic text-text">{title}</p>
+      <p className="text-display text-[13px] text-text">{title}</p>
       {description && <p className="max-w-sm text-sm text-text-3">{description}</p>}
       {action}
     </div>

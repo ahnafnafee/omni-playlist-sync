@@ -14,6 +14,32 @@ const NAV_ITEMS: Array<{ to: string; label: string; end: boolean }> = [
   { to: '/settings', label: 'Settings', end: false },
 ]
 
+// One small hand-drawn stroke glyph per section — no icon library, matches
+// the rest of the app's self-contained-SVG approach (ServiceLogo, BrandMark).
+const NAV_ICON_PATHS: Record<string, string[]> = {
+  '/': ['M3 10.5 12 3l9 7.5', 'M5 9.5V20h14V9.5'],
+  '/accounts': ['M9 12h6', 'M10 8H7.5a4 4 0 0 0 0 8H10', 'M14 8h2.5a4 4 0 0 1 0 8H14'],
+  '/playlists': ['M4 7h9', 'M4 12h6', 'M4 17h6', 'M19.5 15.5V8l-4 1.2'],
+  '/transfers': ['M4 8h13', 'M14 5l3 3-3 3', 'M20 16H7', 'M10 13l-3 3 3 3'],
+  '/settings': ['M4 8h8', 'M16 8h4', 'M4 16h4', 'M12 16h8'],
+}
+const NAV_ICON_CIRCLES: Record<string, Array<{ cx: number; cy: number; r: number }>> = {
+  '/playlists': [{ cx: 17, cy: 15.5, r: 2.5 }],
+  '/settings': [
+    { cx: 14, cy: 8, r: 2 },
+    { cx: 10, cy: 16, r: 2 },
+  ],
+}
+
+function NavIcon({ to, className }: { to: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      {NAV_ICON_PATHS[to]?.map((d) => <path key={d} d={d} />)}
+      {NAV_ICON_CIRCLES[to]?.map((c) => <circle key={`${c.cx}-${c.cy}`} cx={c.cx} cy={c.cy} r={c.r} />)}
+    </svg>
+  )
+}
+
 /** 64px desktop / 56px mobile, drawer below `lg` (1024px) — the design's own
  * nav needs more room than the previous `md` cutoff gave it once
  * "Transfers" joined the other four items. */
@@ -54,13 +80,14 @@ export function NavBar() {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  'inline-flex h-[34px] items-center rounded-control px-3.5 text-[13.5px] font-medium transition-colors duration-fast',
+                  'inline-flex h-[34px] items-center gap-1.5 rounded-control px-3 text-[13.5px] font-medium transition-colors duration-fast',
                   isActive
                     ? 'bg-accent-soft font-semibold text-accent shadow-[inset_0_-2px_0_var(--color-accent)]'
                     : 'text-text-2 hover:bg-surface-2 hover:text-text',
                 )
               }
             >
+              <NavIcon to={item.to} className="size-4 shrink-0" />
               {item.label}
             </NavLink>
           ))}
@@ -99,21 +126,21 @@ export function NavBar() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  'flex h-12 items-center gap-2.5 rounded-[9px] text-[15px] font-medium transition-colors duration-fast',
-                  isActive ? 'bg-accent-soft pl-3.5 font-semibold text-accent' : 'pl-[27px] text-text-2 hover:bg-surface-2',
+                  'flex h-12 items-center gap-2.5 rounded-[9px] pl-3.5 text-[15px] font-medium transition-colors duration-fast',
+                  isActive ? 'bg-accent-soft font-semibold text-accent' : 'text-text-2 hover:bg-surface-2',
                 )
               }
             >
-              {({ isActive }) =>
-                isActive ? (
-                  <>
-                    <span className="h-[18px] w-[3px] shrink-0 rounded-[2px] bg-accent" aria-hidden="true" />
-                    {item.label}
-                  </>
-                ) : (
-                  item.label
-                )
-              }
+              {({ isActive }) => (
+                <>
+                  {/* Fixed-width slot (visible only when active) so the icon
+                      and label sit at the same x-position either way — no
+                      layout jump as the active row changes. */}
+                  <span className={cn('h-[18px] w-[3px] shrink-0 rounded-[2px]', isActive ? 'bg-accent' : 'bg-transparent')} aria-hidden="true" />
+                  <NavIcon to={item.to} className="size-[18px] shrink-0" />
+                  {item.label}
+                </>
+              )}
             </NavLink>
           ))}
           <div className="mt-2.5 border-t border-border px-3.5 pt-3">
@@ -127,7 +154,10 @@ export function NavBar() {
 
 function Logo() {
   return (
-    <span className="flex size-7 shrink-0 items-end justify-center rounded-control bg-accent pb-1.5" aria-hidden="true">
+    <span
+      className="flex size-7 shrink-0 items-end justify-center rounded-control bg-accent pb-1.5 shadow-(--shadow-key)"
+      aria-hidden="true"
+    >
       <BrandMark barClassName="bg-on-accent" />
     </span>
   )

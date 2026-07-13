@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { api, errorMessage } from '@/api'
 import type { ProviderPlaylistsEntry } from '@/hooks/useProviderPlaylists'
+import { cn } from '@/lib/cn'
 import { serviceLogoId, tagLabel, tagText } from '@/lib/constants'
 import type { Account, StartTransferRequest } from '@/types'
 
@@ -115,83 +116,125 @@ export function TransferSetupForm({ accounts, entries, onStarted }: Props) {
         </p>
       ) : (
         <>
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <div className="flex min-w-0 flex-1 flex-col gap-3.5 rounded-card border border-border bg-surface p-4 shadow-sm">
-              <span className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-text-3">SOURCE</span>
-              <SelectField
-                label="Service"
-                icon={serviceIcon(sourceProvider)}
-                options={[{ value: '', label: 'Choose a service…' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]}
-                value={sourceProvider}
-                onChange={(e) => {
-                  setSourceProvider(e.target.value)
-                  setSourcePlaylistId('')
-                }}
-              />
-              <SelectField
-                label="Playlist"
-                options={playlistOptions(sourceProvider)}
-                value={sourcePlaylistId}
-                disabled={!sourceProvider}
-                onChange={(e) => setSourcePlaylistId(e.target.value)}
-              />
-            </div>
-
-            <span
-              aria-hidden="true"
-              className="flex size-9 shrink-0 rotate-90 items-center justify-center self-center rounded-full border border-border-strong bg-surface-2 text-[15px] font-semibold text-accent sm:size-10 sm:rotate-0 sm:text-[17px]"
-            >
-              →
-            </span>
-
-            <div className="flex min-w-0 flex-1 flex-col gap-3.5 rounded-card border border-border bg-surface p-4 shadow-sm">
-              <span className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-text-3">DESTINATION</span>
-              <SelectField
-                label="Service"
-                help={!sourceProvider ? 'Pick a source service first.' : undefined}
-                icon={serviceIcon(destProvider)}
-                options={[
-                  { value: '', label: 'Choose a service…' },
-                  ...destProviderOptions.map((a) => ({ value: a.id, label: a.name })),
-                ]}
-                value={destProvider}
-                disabled={!sourceProvider}
-                onChange={(e) => {
-                  setDestProvider(e.target.value)
-                  setDestPlaylistId('')
-                }}
-              />
-
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[12.5px] font-semibold text-text-2">Playlist</span>
-                <Segmented
-                  ariaLabel="Destination playlist"
-                  options={DEST_MODE_OPTIONS}
-                  value={destMode}
-                  onChange={(v) => setDestMode(v as 'existing' | 'create')}
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-stretch">
+            {/* "Deck A" — twin tape decks patched by a dashed cable is the
+                mental model: this one ends in a counter readout once a
+                playlist is picked. */}
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-card border border-border-strong bg-inset shadow-sm">
+              <div
+                className="border-b border-border px-4 py-2"
+                style={{ backgroundImage: 'radial-gradient(var(--color-border) 1px, transparent 1px)', backgroundSize: '9px 9px' }}
+              >
+                <span className="rounded bg-inset px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.14em] text-text-2">
+                  DECK A — SOURCE
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-3.5 p-4">
+                <SelectField
+                  label="Service"
+                  icon={serviceIcon(sourceProvider)}
+                  options={[{ value: '', label: 'Choose a service…' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]}
+                  value={sourceProvider}
+                  onChange={(e) => {
+                    setSourceProvider(e.target.value)
+                    setSourcePlaylistId('')
+                  }}
+                />
+                <SelectField
+                  label="Playlist"
+                  options={playlistOptions(sourceProvider)}
+                  value={sourcePlaylistId}
+                  disabled={!sourceProvider}
+                  onChange={(e) => setSourcePlaylistId(e.target.value)}
                 />
               </div>
-
-              {destMode === 'existing' ? (
-                <SelectField
-                  label="Existing playlist"
-                  options={[
-                    { value: '', label: destProvider ? 'Choose a playlist…' : 'Choose a destination service first' },
-                    ...(entries[destProvider]?.playlists.map((p) => ({ value: p.id, label: p.name })) ?? []),
-                  ]}
-                  value={destPlaylistId}
-                  disabled={!destProvider}
-                  onChange={(e) => setDestPlaylistId(e.target.value)}
-                />
-              ) : (
-                <TextField
-                  label="New playlist name"
-                  help="Defaults to the source playlist's name — feel free to change it."
-                  required
-                  value={destName}
-                  onChange={(e) => setDestName(e.target.value)}
-                />
+              {sourcePlaylist && (
+                <div className="flex items-baseline gap-2.5 border-t border-border px-4 py-2.5">
+                  <span className="font-mono text-[26px] font-bold leading-none tracking-wide text-accent">{sourcePlaylist.count}</span>
+                  <span className="font-mono text-[9px] tracking-[0.1em] text-text-3">TRACKS · SNAPSHOT AT COPY TIME</span>
+                </div>
               )}
+            </div>
+
+            {/* The dashed cable — a one-off patch, not a pairing. */}
+            <div className="flex shrink-0 items-center justify-center gap-1.5 self-center">
+              <span className="hidden h-0 w-6 border-t-2 border-dashed border-border-strong sm:block" aria-hidden="true" />
+              <span
+                aria-hidden="true"
+                className="flex size-9 shrink-0 rotate-90 items-center justify-center rounded-full border border-border-strong bg-surface-2 text-[15px] font-semibold text-accent sm:size-10 sm:rotate-0 sm:text-[17px]"
+              >
+                →
+              </span>
+              <span className="hidden h-0 w-6 border-t-2 border-dashed border-border-strong sm:block" aria-hidden="true" />
+            </div>
+
+            {/* "Deck B" — ends in a write-mode lamp instead of a counter. */}
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-card border border-border-strong bg-inset shadow-sm">
+              <div
+                className="border-b border-border px-4 py-2"
+                style={{ backgroundImage: 'radial-gradient(var(--color-border) 1px, transparent 1px)', backgroundSize: '9px 9px' }}
+              >
+                <span className="rounded bg-inset px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.14em] text-text-2">
+                  DECK B — DESTINATION
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-3.5 p-4">
+                <SelectField
+                  label="Service"
+                  help={!sourceProvider ? 'Pick a source service first.' : undefined}
+                  icon={serviceIcon(destProvider)}
+                  options={[
+                    { value: '', label: 'Choose a service…' },
+                    ...destProviderOptions.map((a) => ({ value: a.id, label: a.name })),
+                  ]}
+                  value={destProvider}
+                  disabled={!sourceProvider}
+                  onChange={(e) => {
+                    setDestProvider(e.target.value)
+                    setDestPlaylistId('')
+                  }}
+                />
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[12.5px] font-semibold text-text-2">Playlist</span>
+                  <Segmented
+                    ariaLabel="Destination playlist"
+                    options={DEST_MODE_OPTIONS}
+                    value={destMode}
+                    onChange={(v) => setDestMode(v as 'existing' | 'create')}
+                  />
+                </div>
+
+                {destMode === 'existing' ? (
+                  <SelectField
+                    label="Existing playlist"
+                    options={[
+                      { value: '', label: destProvider ? 'Choose a playlist…' : 'Choose a destination service first' },
+                      ...(entries[destProvider]?.playlists.map((p) => ({ value: p.id, label: p.name })) ?? []),
+                    ]}
+                    value={destPlaylistId}
+                    disabled={!destProvider}
+                    onChange={(e) => setDestPlaylistId(e.target.value)}
+                  />
+                ) : (
+                  <TextField
+                    label="New playlist name"
+                    help="Defaults to the source playlist's name — feel free to change it."
+                    required
+                    value={destName}
+                    onChange={(e) => setDestName(e.target.value)}
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-2 border-t border-border px-4 py-2.5">
+                <span
+                  className={cn('size-[7px] shrink-0 rounded-full', destMode === 'create' ? 'bg-warning' : 'bg-success')}
+                  aria-hidden="true"
+                />
+                <span className="font-mono text-[9px] tracking-[0.1em] text-text-3">
+                  {destMode === 'create' ? 'WRITE MODE — CREATE NEW · NAME FROM DECK A' : 'WRITE MODE — ADD TO EXISTING'}
+                </span>
+              </div>
             </div>
           </div>
 

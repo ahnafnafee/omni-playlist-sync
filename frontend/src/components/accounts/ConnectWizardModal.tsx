@@ -293,7 +293,7 @@ function DeviceStep({ info }: { info: ConnectDeviceResponse }) {
     <div className="flex flex-col items-center gap-4 text-center">
       <p className="text-sm text-text-2">Open the link below on any device and enter this code:</p>
       <div className="flex w-full flex-col items-center gap-2 rounded-control border border-border bg-inset p-4">
-        <span className="break-all font-mono text-2xl font-semibold tracking-[0.18em] text-text sm:tracking-[0.22em]">
+        <span className="break-all font-mono text-[26px] font-semibold tracking-[0.18em] text-text sm:text-[30px] sm:tracking-[0.22em]">
           {info.user_code}
         </span>
         <CopyButton value={info.user_code} />

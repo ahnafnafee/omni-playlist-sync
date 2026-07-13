@@ -37,7 +37,7 @@ export function SyncStatusSummary({ status, error, onToggleSchedule, scheduleBus
           className={cn('size-2.5 rounded-full', status.running ? 'animate-pulse bg-accent' : 'bg-neutral')}
           aria-hidden="true"
         />
-        <span className="font-serif text-[26px] italic leading-none text-text">
+        <span className="text-display text-[26px] leading-none text-text">
           {status.running ? 'Running…' : 'Idle'}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-text-3">

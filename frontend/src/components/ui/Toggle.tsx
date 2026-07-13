@@ -43,7 +43,8 @@ export function Toggle({ checked, onChange, label, description, disabled, hideLa
         aria-hidden="true"
         className={cn(
           'relative inline-flex h-[25px] w-[42px] shrink-0 items-center rounded-full transition-colors duration-fast',
-          checked ? 'bg-accent' : 'bg-border-strong',
+          // Bevel only when live/on — an off track is flush, not a key.
+          checked ? 'bg-accent shadow-(--shadow-key)' : 'bg-border-strong',
         )}
       >
         <span
