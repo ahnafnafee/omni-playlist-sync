@@ -1,5 +1,6 @@
 """Account wizard endpoints — connect/inspect each service uniformly."""
 
+import html
 import re
 from dataclasses import asdict
 
@@ -62,7 +63,8 @@ def oauth_callback(cid: str, request: Request):
     st = _conn(request, cid).complete_redirect({"url": str(request.url)})
     return HTMLResponse(
         f"<body style='font-family:system-ui;padding:2rem'>"
-        f"<h2>{CONNECTORS[cid].name}: {st.state}</h2><p>{st.detail}</p>"
+        f"<h2>{html.escape(CONNECTORS[cid].name)}: {html.escape(st.state)}</h2>"
+        f"<p>{html.escape(st.detail or '')}</p>"
         f"<p>You can close this tab and return to the app.</p></body>"
     )
 
