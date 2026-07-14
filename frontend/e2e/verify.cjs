@@ -1850,8 +1850,16 @@ async function main() {
       console.log(`${scrollUnmoved ? 'ok        ' : 'FAIL      '} appending events while scrolled up does not move scrollTop (before=${scrolledUp.top} after=${afterNewEvents.top})`)
       if (!scrollUnmoved) results.push({ label: 'live feed no autoscroll while scrolled up', overflow: true })
 
-      const buttonCountText = (await jumpButton.textContent()) ?? ''
-      const newCountOk = /8 new/.test(buttonCountText)
+      // The missed-count badge updates a React render tick after the events
+      // land, so poll for it rather than reading once (avoids racing the
+      // re-render on a slower CI runner).
+      let buttonCountText = ''
+      let newCountOk = false
+      for (let i = 0; i < 30 && !newCountOk; i++) {
+        buttonCountText = (await jumpButton.textContent()) ?? ''
+        newCountOk = /8 new/.test(buttonCountText)
+        if (!newCountOk) await page.waitForTimeout(100)
+      }
       console.log(`${newCountOk ? 'ok        ' : 'FAIL      '} the button shows a "N new" count for events missed while scrolled up (text="${buttonCountText.trim()}")`)
       if (!newCountOk) results.push({ label: 'live feed button new count', overflow: true })
 
