@@ -24,8 +24,9 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+import spotipy
 
-from . import spotify
+from . import spotify, spotify_web
 from .logs import fmt_secs, log_download, log_miss, log_note, log_section, log_summary, log_warn
 from .matching import normalize_text as _norm
 
@@ -58,8 +59,48 @@ def ffmpeg_available():
 
 
 def read_tracks(sp, playlist_id):
-    """Ordered per-track info from the live playlist: added-at, ISRC, match
-    keys, and display name/artist/duration."""
+    """Ordered per-track info from the live playlist: added-at, ISRC, match keys,
+    and display name/artist/duration. Falls back to the web-player read on a 403
+    (a followed playlist the official API forbids) so the mirror covers those too."""
+    try:
+        return _read_tracks_api(sp, playlist_id)
+    except spotipy.SpotifyException as e:
+        if e.http_status == 403 and spotify_web.enabled():
+            log_note(f"{playlist_id}: playlist read forbidden (403); web-player fallback for the local mirror", tag="local")
+            try:
+                return _read_tracks_web(playlist_id)
+            except Exception as we:
+                log_warn(f"{playlist_id}: web-player fallback failed ({we!r})", tag="local")
+                raise e
+        raise
+
+
+def _read_tracks_web(playlist_id):
+    """read_tracks' shape for a followed playlist read via the web player. The
+    web payload carries no album art, so per-track `image` is None (spotDL still
+    embeds whatever cover it finds); tracks with no added-at are skipped, same as
+    the official read."""
+    out = []
+    for t in spotify_web.playlist_tracks(playlist_id):
+        try:
+            when = datetime.fromisoformat((t.get("added_at") or "").replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+        name = t.get("name", "")
+        artists = [a for a in (t.get("artists") or []) if a]
+        title = _norm(name)
+        keys = set()
+        if title:
+            for artist in {_norm(artists[0] if artists else ""), _norm(" ".join(artists))}:
+                if artist:
+                    keys.add(f"{artist}|{title}")
+        out.append({"id": t.get("id"), "when": when, "isrc": None, "keys": keys,
+                    "name": name, "artist": ", ".join(artists), "album": t.get("album"),
+                    "image": None, "duration_ms": t.get("duration_ms")})
+    return out
+
+
+def _read_tracks_api(sp, playlist_id):
     out = []
     page = spotify._retry(lambda: sp.playlist_items(playlist_id, additional_types=("track",), limit=100), "playlist_items")
     while page:
