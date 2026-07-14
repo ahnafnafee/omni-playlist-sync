@@ -28,3 +28,72 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          # `cache:` intentionally omitted — the bundled pnpm cache saves in a
+          # post-step that runs even on a failed run and could poison main. The
+          # pnpm store + Playwright browsers are restored/saved as separate,
+          # success-gated steps below (see ci-cache-safety rule).
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store
+        id: cache-pnpm
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Restore Playwright browsers
+        id: cache-playwright
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm -C frontend install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        run: pnpm -C frontend exec playwright install --with-deps chromium
+
+      - name: Lint
+        run: pnpm -C frontend lint
+
+      - name: Build (typecheck + bundle)
+        run: pnpm -C frontend build
+
+      # GitHub sets CI=true, so verify.cjs skips screenshots and just reports pass/fail.
+      - name: E2E (mocked Playwright suite)
+        run: pnpm -C frontend test:e2e
+
+      - name: Save pnpm store (only on a green run)
+        if: success() && steps.cache-pnpm.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: ${{ steps.cache-pnpm.outputs.cache-primary-key }}
+
+      - name: Save Playwright browsers (only on a green run)
+        if: success() && steps.cache-playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.cache-playwright.outputs.cache-primary-key }}
