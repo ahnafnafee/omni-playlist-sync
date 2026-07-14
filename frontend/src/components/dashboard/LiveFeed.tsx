@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 import { EventFeedList } from '@/components/events/EventFeedList'
 import { useEventStream } from '@/hooks/useEventStream'
 import { cn } from '@/lib/cn'
@@ -17,7 +15,6 @@ const COUNTER_META: Array<{ key: 'added' | 'removed' | 'held' | 'missing'; sign:
  * add/remove/held/missing counters for the current pass. */
 export function LiveFeed() {
   const { events, counters, connected } = useEventStream()
-  const [paused, setPaused] = useState(false)
 
   return (
     <div className="flex flex-col gap-3">
@@ -28,9 +25,6 @@ export function LiveFeed() {
             aria-hidden="true"
           />
           <span className="font-mono text-[10.5px] font-semibold tracking-wide text-text-3">LIVE FEED</span>
-          {paused && (
-            <span className="rounded-chip bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2">Paused</span>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 font-mono text-[10.5px] tracking-wide text-text-3">THIS PASS</span>
@@ -42,8 +36,6 @@ export function LiveFeed() {
 
       <EventFeedList
         events={events}
-        paused={paused}
-        onPausedChange={setPaused}
         emptyTitle="No activity yet"
         emptyDescription="Start a sync to see live progress here. Every track added, removed, or held will show up in real time."
         ariaLabel="Live sync activity"

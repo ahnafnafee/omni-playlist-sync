@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 import { EventFeedList } from '@/components/events/EventFeedList'
 import { cn } from '@/lib/cn'
 import type { SyncEvent } from '@/types'
@@ -8,8 +6,6 @@ import type { SyncEvent } from '@/types'
  * also call `clear()` when a new transfer starts) and passes down the
  * already tag-filtered events. */
 export function TransferLiveFeed({ events, connected }: { events: SyncEvent[]; connected: boolean }) {
-  const [paused, setPaused] = useState(false)
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2.5">
@@ -19,8 +15,6 @@ export function TransferLiveFeed({ events, connected }: { events: SyncEvent[]; c
       </div>
       <EventFeedList
         events={events}
-        paused={paused}
-        onPausedChange={setPaused}
         emptyTitle="No activity yet"
         emptyDescription="Progress will show up here once the transfer starts running."
         ariaLabel="Live transfer activity"
