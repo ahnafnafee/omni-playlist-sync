@@ -39,7 +39,16 @@ _TOPIC_RE = re.compile(r"\s*-\s*Topic$")
 
 
 def build():
-    """A ready YTMusicTarget, or None (logged) when YT isn't set up."""
+    """A ready YT target, or None (logged) when YT isn't set up. Prefers the
+    no-quota browser (youtubei) backend when YTMUSIC_PREFER_BROWSER is on and
+    YTMUSIC_BROWSER_AUTH points at a ytmusicapi browser-auth file; otherwise the
+    durable OAuth Data API (the default)."""
+    browser = os.getenv("YTMUSIC_BROWSER_AUTH", "")
+    if os.getenv("YTMUSIC_PREFER_BROWSER", "").lower() in ("1", "on", "true", "yes") and browser and os.path.exists(browser):
+        try:
+            return YTMusicBrowserTarget(browser)
+        except Exception as e:
+            log_warn(f"YouTube Music no-quota (browser) mode failed ({e!r}); falling back to the Data API", tag="yt")
     auth = os.getenv("YTMUSIC_AUTH_FILE", DEFAULT_AUTH_FILE)
     cid, secret = os.getenv("YTMUSIC_OAUTH_CLIENT_ID"), os.getenv("YTMUSIC_OAUTH_CLIENT_SECRET")
     if not os.path.exists(auth):
@@ -278,4 +287,69 @@ class YTMusicTarget(MirrorTarget):
         if not track.get("playlistItemId"):
             return  # removal needs the playlist-item id (from playlist_tracks)
         self._request("DELETE", "playlistItems", params={"id": track["playlistItemId"]})
+        polite_sleep(1.0)
+
+
+class YTMusicBrowserTarget(YTMusicTarget):
+    """No-quota YT reads/writes via ytmusicapi's authenticated youtubei API, so a
+    large backfill isn't capped at the Data API's ~200 adds/day. Trade-off: the
+    browser cookies are a session snapshot Google rotates, so they need
+    re-exporting periodically (the OAuth refresh token is durable by comparison).
+    Inherits resolve/search (still the free public ytmusicapi) and the dict-shape
+    accessors — only the reads/writes swap to the youtubei path."""
+
+    def __init__(self, browser_auth_file):
+        self.cache_file = os.getenv("YTMUSIC_CACHE_FILE", "ytmusic_resolve_cache.json")
+        from ytmusicapi import YTMusic
+        self._ytm = YTMusic()                   # public search (used by inherited resolve/_search)
+        self._api = YTMusic(browser_auth_file)  # authenticated reads + writes, no Data API quota
+
+    def list_playlists(self):
+        out = {}
+        for pl in self._api.get_library_playlists(limit=None):
+            title = (pl.get("title") or "").strip()
+            key = title.casefold()
+            if key and key not in out:
+                out[key] = {"playlistId": pl.get("playlistId"), "title": title, "count": pl.get("count")}
+        return out
+
+    def create(self, sp_playlist):
+        from .. import spotify
+        pid = self._api.create_playlist(
+            sp_playlist.get("name", ""), spotify.description(sp_playlist), privacy_status="PRIVATE")
+        if not isinstance(pid, str):  # ytmusicapi returns a status dict/response on failure
+            raise TargetAuthError(f"YouTube Music refused to create the playlist ({pid!r}).")
+        polite_sleep(2.0)
+        return {"playlistId": pid, "title": sp_playlist.get("name", ""), "count": 0}
+
+    def playlist_tracks(self, playlist):
+        data = self._api.get_playlist(playlist["playlistId"], limit=None) or {}
+        tracks = []
+        for t in data.get("tracks") or []:
+            vid = t.get("videoId")
+            if not vid:
+                continue
+            artists = [a.get("name", "") for a in (t.get("artists") or []) if a.get("name")]
+            album = t.get("album")
+            ds = t.get("duration_seconds")
+            tracks.append({
+                "id": vid, "videoId": vid, "setVideoId": t.get("setVideoId"),
+                "name": t.get("title", ""), "artist": ", ".join(artists), "artists": artists or [""],
+                "album": album.get("name") if isinstance(album, dict) else None,
+                "duration_ms": ds * 1000 if ds else None,
+            })
+        return tracks
+
+    def add(self, playlist, target_ids):
+        # One youtubei call per batch (the Data API needed one call PER track); ids
+        # stay in order, so append order == date-added order as before.
+        for i in range(0, len(target_ids), 100):
+            self._api.add_playlist_items(playlist["playlistId"], target_ids[i:i + 100], duplicates=True)
+            polite_sleep(1.0)
+
+    def remove(self, playlist, track):
+        if not track.get("setVideoId"):
+            return  # youtubei removal needs setVideoId (from playlist_tracks)
+        self._api.remove_playlist_items(
+            playlist["playlistId"], [{"videoId": track["videoId"], "setVideoId": track["setVideoId"]}])
         polite_sleep(1.0)
