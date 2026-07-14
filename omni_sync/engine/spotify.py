@@ -49,18 +49,30 @@ def client(writable=False):
     scope = "playlist-read-private"
     if writable:
         scope += " playlist-modify-private playlist-modify-public"
-    return spotipy.Spotify(
-        auth_manager=SpotifyOAuth(
-            client_id=required_env("SPOTIFY_CLIENT_ID"),
-            client_secret=required_env("SPOTIFY_CLIENT_SECRET"),
-            redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", DEFAULT_SPOTIFY_REDIRECT_URI),
-            scope=scope,
-            cache_path=os.getenv("SPOTIFY_TOKEN_CACHE", ".cache"),
-            open_browser=os.getenv("SPOTIFY_OAUTH_OPEN_BROWSER", "1") != "0",
-        ),
-        requests_timeout=REQUEST_TIMEOUT,
-        retries=5,
+    auth = SpotifyOAuth(
+        client_id=required_env("SPOTIFY_CLIENT_ID"),
+        client_secret=required_env("SPOTIFY_CLIENT_SECRET"),
+        redirect_uri=os.getenv("SPOTIFY_REDIRECT_URI", DEFAULT_SPOTIFY_REDIRECT_URI),
+        scope=scope,
+        cache_path=os.getenv("SPOTIFY_TOKEN_CACHE", ".cache"),
+        open_browser=os.getenv("SPOTIFY_OAUTH_OPEN_BROWSER", "1") != "0",
     )
+    # With no usable cached token, spotipy prints a URL and calls input() to paste
+    # the redirect back — which EOFErrors in a headless server. Pre-check the cache
+    # non-interactively: a missing/unrefreshable token, or one whose scope doesn't
+    # cover this request (an N-way pass needs the modify scopes a read-only token
+    # lacks), fails with a clear, actionable message instead of a cryptic EOF.
+    try:
+        token = auth.validate_token(auth.get_cached_token())
+    except Exception:
+        token = None
+    if not token:
+        from .targets.base import TargetAuthError
+
+        raise TargetAuthError(
+            "Spotify needs reconnecting — its saved authorization is expired or lacks the "
+            "write access N-way sync needs. Reconnect Spotify in the app.")
+    return spotipy.Spotify(auth_manager=auth, requests_timeout=REQUEST_TIMEOUT, retries=5)
 
 
 def description(sp_playlist):

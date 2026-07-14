@@ -208,6 +208,33 @@ def test_download_dir_prefers_container_override(tmp_path, monkeypatch):
     assert svc._opts_for(job, execute=True).download_dir == ""
 
 
+def test_spotify_client_raises_instead_of_prompting(monkeypatch):
+    # A cached token whose scope doesn't cover the request (a read-only token vs
+    # an N-way writable pass) must fail with a clear TargetAuthError — never
+    # spotipy's interactive input(), which EOFErrors in a headless server.
+    import pytest
+
+    import omni_sync.engine.spotify as sp
+    from omni_sync.engine.targets.base import TargetAuthError
+
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "c")
+    monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "s")
+
+    class FakeOAuth:
+        def __init__(self, **k):
+            pass
+
+        def get_cached_token(self):
+            return {"scope": "playlist-read-private"}
+
+        def validate_token(self, t):
+            return None  # scope mismatch -> spotipy would re-auth interactively
+
+    monkeypatch.setattr(sp, "SpotifyOAuth", FakeOAuth)
+    with pytest.raises(TargetAuthError):
+        sp.client(writable=True)
+
+
 def test_transfers_start_and_status(tmp_path, monkeypatch):
     from omni_sync.services.transfers import TransferService
 
