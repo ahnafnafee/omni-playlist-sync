@@ -91,7 +91,15 @@ export function NeedsALook({ accounts, status }: { accounts: Account[] | null; s
             key={item.key}
             className="flex items-center gap-3 rounded-card border border-border border-l-[3px] border-l-warning bg-surface p-4 shadow-sm"
           >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-warning-soft text-warning">
+            {/* Solid bg-warning + text-surface (not the soft-tinted bg-warning-soft
+                text-warning used elsewhere), matching the app's other solid chips
+                (e.g. the primary button's bg-accent text-on-accent) — an
+                outline glyph in the same hue as a light fill is too
+                low-contrast to read as anything but blank. --color-surface
+                inverts appropriately per theme (light in light mode, dark in
+                dark mode), so this stays legible against --color-warning's
+                own per-theme fill in both. */}
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-warning text-surface">
               <item.icon className="size-[18px]" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">

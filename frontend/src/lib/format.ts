@@ -1,6 +1,12 @@
-/** Formats a duration in seconds compactly, e.g. 45 -> "45s", 125 -> "2m 05s". */
-export function formatDuration(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds))
+/** Formats a duration in seconds compactly, e.g. 45 -> "45s", 125 -> "2m 05s".
+ * Returns `null` — not a "0s"/"NaNm NaNs"-shaped string — when there's
+ * nothing valid to report (missing, non-finite, or <= 0), e.g. a preview or
+ * failed pass that never recorded a duration; callers should omit whatever
+ * "took ___" fragment they'd otherwise show rather than render a null-ish
+ * duration as if it were real. */
+export function formatDuration(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null
+  const s = Math.round(seconds)
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)
   const rem = s % 60

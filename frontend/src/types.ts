@@ -80,7 +80,8 @@ export interface TargetSummary {
 export interface PassSummary {
   mode: string
   execute: boolean
-  duration_s: number
+  /** A failed/preview pass may never record a duration. */
+  duration_s: number | null
   ok: boolean
   error: string | null
   per_target: TargetSummary[]

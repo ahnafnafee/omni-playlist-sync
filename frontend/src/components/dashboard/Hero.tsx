@@ -49,10 +49,14 @@ function heroCopy(accounts: Account[] | null): { headline: string; detail: strin
 
 /** No per-pass "finished at" timestamp exists in the API (only how long the
  * pass took), so this reports what actually happened rather than a
- * fabricated "N min ago". */
+ * fabricated "N min ago". A failed/preview pass may have no recorded
+ * duration — formatDuration returns null for that, and the "· took …"
+ * fragment is omitted entirely rather than printing a NaN-shaped string. */
 function lastRunText(status: SyncStatus | null): string {
   if (!status?.last) return 'No sync has run yet'
-  return `Last run ${status.last.execute ? 'applied changes' : 'was a preview'} · took ${formatDuration(status.last.duration_s)}`
+  const kind = status.last.execute ? 'applied changes' : 'was a preview'
+  const duration = formatDuration(status.last.duration_s)
+  return duration ? `Last run ${kind} · took ${duration}` : `Last run ${kind}`
 }
 
 /** The dashboard's opening read: "how are things" in one sentence, framed by
