@@ -49,7 +49,6 @@ def create_app(settings=None, bus=None, sync_service=None, links=None, transfers
         load_dotenv()
         os.environ["OMNI_ENV_FILE"] = settings.env_path
         settings.apply_to_env()
-        syncs.seed_default(settings)  # migrate the single global config into a "Default" job once
         await sync_service.start()
         try:
             yield

@@ -67,6 +67,18 @@ def test_spotify_redirect_uri_reflects_access_port(tmp_path):
         assert store.get("SPOTIFY_REDIRECT_URI") == "http://127.0.0.1:8888/oauth/spotify/callback"
 
 
+def test_oauth_callback_handles_provider_error(tmp_path):
+    # Spotify (or the user denying) can bounce back with ?error=... instead of a
+    # code — the callback must render a friendly page, not a 500 with a raw
+    # "Internal Server Error".
+    store = SettingsStore(dir=tmp_path)
+    store.save({"SPOTIFY_CLIENT_ID": "cid", "SPOTIFY_CLIENT_SECRET": "sec"})
+    with TestClient(create_app(settings=store)) as client:
+        r = client.get("/oauth/spotify/callback?error=server_error")
+        assert r.status_code == 200
+        assert "server_error" in r.text and "Spotify" in r.text
+
+
 def test_sync_run_queues(tmp_path, monkeypatch):
     import omni_sync.services.sync_service as m
 
@@ -83,12 +95,12 @@ def test_auto_sync_pause_persists_across_restart(tmp_path):
     # scheduler reads it on boot, so it can't silently turn itself back on.
     store = SettingsStore(dir=tmp_path)
     with TestClient(create_app(settings=store)) as client:
-        assert client.get("/api/sync/status").json()["scheduled"] is True
+        assert client.get("/api/sync/status").json()["master"] is True
         client.post("/api/sync/schedule", json={"action": "pause"})
-        assert client.get("/api/sync/status").json()["scheduled"] is False
+        assert client.get("/api/sync/status").json()["master"] is False
     # A fresh app over the same persisted settings dir == a restart.
     with TestClient(create_app(settings=SettingsStore(dir=tmp_path))) as client:
-        assert client.get("/api/sync/status").json()["scheduled"] is False
+        assert client.get("/api/sync/status").json()["master"] is False
 
 
 def test_events_route_registered(tmp_path):
@@ -110,12 +122,12 @@ def test_links_crud(tmp_path):
         assert client.get("/api/links").json() == []
 
 
-def test_syncs_crud_and_seed(tmp_path):
-    # The single global config is migrated into one "Default" job on first boot,
-    # then jobs are managed via CRUD.
+def test_syncs_crud(tmp_path):
+    # Fresh installs start with NO syncs (no auto-seeded "Default"); jobs are
+    # created, merge-updated, and deleted via CRUD.
     store = SyncStore(dir=tmp_path)
     with TestClient(create_app(settings=SettingsStore(dir=tmp_path), syncs=store)) as client:
-        assert [j["name"] for j in client.get("/api/syncs").json()] == ["Default"]
+        assert client.get("/api/syncs").json() == []
         jid = client.post("/api/syncs", json={"name": "Workout", "mode": "oneway", "source": "apple"}).json()["id"]
         assert jid
         client.put(f"/api/syncs/{jid}", json={"enabled": False})

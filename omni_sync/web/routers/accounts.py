@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 
 from ...engine.targets import is_peer
 from ...services.accounts import CONNECTORS
-from ...services.accounts.base import DeviceCode
+from ...services.accounts.base import ConnStatus, DeviceCode
 
 router = APIRouter()
 
@@ -64,7 +64,18 @@ async def connect(cid: str, request: Request):
 
 @router.get("/oauth/{cid}/callback")
 def oauth_callback(cid: str, request: Request):
-    st = _conn(request, cid).complete_redirect({"url": str(request.url)})
+    # The provider can bounce back with ?error=... (the user denied, or a
+    # provider-side failure like Spotify's "server_error") instead of a code.
+    # Treat that as a failed connection and, likewise, catch any token-exchange
+    # error — the callback must never 500 and show a raw "Internal Server Error".
+    err = request.query_params.get("error")
+    if err:
+        st = ConnStatus("error", f"{CONNECTORS[cid].name} returned '{err}' — nothing was authorized.")
+    else:
+        try:
+            st = _conn(request, cid).complete_redirect({"url": str(request.url)})
+        except Exception as e:
+            st = ConnStatus("error", f"could not finish authorization ({e})")
     return HTMLResponse(
         f"<body style='font-family:system-ui;padding:2rem'>"
         f"<h2>{html.escape(CONNECTORS[cid].name)}: {html.escape(st.state)}</h2>"

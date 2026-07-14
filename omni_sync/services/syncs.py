@@ -11,7 +11,6 @@ each job is an ordinary pass.
 """
 
 import json
-import os
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -69,35 +68,3 @@ class SyncStore:
     def _save(self, jobs):
         with _open_private(self._path) as f:
             json.dump([asdict(j) for j in jobs], f, indent=2)
-
-    def seed_default(self, settings):
-        """Migrate the single global config into one 'Default' job the first time,
-        so upgrading from the single-sync model loses nothing. No-op once any job
-        exists."""
-        if self.list():
-            return
-        g = settings.load()
-
-        def val(key, default=""):
-            # Effective config: settings.json wins, else the process env (the
-            # user's .env / docker), matching what the settings API surfaces.
-            return g.get(key) or os.getenv(key) or default
-
-        def _int(key, default):
-            try:
-                return int(val(key, default))
-            except (TypeError, ValueError):
-                return default
-
-        self.upsert(SyncJob(
-            name="Default",
-            enabled=settings.get("AUTO_SYNC", "on") != "off",
-            mode=val("SYNC_MODE", DEFAULT_SYNC_MODE),
-            source=val("SYNC_SOURCE", DEFAULT_SYNC_SOURCE),
-            providers=val("PROVIDERS", DEFAULT_PROVIDERS),
-            playlists=val("PLAYLISTS"),
-            interval=val("SYNC_INTERVAL", DEFAULT_INTERVAL),
-            max_adds=_int("MAX_ADDS", DEFAULT_MAX_ADDS),
-            max_removals=_int("MAX_REMOVALS", DEFAULT_MAX_REMOVALS),
-            download=bool(val("DOWNLOAD_DIR").strip()),
-        ))
