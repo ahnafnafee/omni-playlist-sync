@@ -6,6 +6,7 @@ client id/secret once; the wizard shows the exact redirect URI to whitelist.
 
 import os
 
+from ...engine.config import SPOTIFY_SCOPE
 from .base import ConnStatus, Connector, Field
 
 
@@ -31,19 +32,18 @@ class SpotifyConnector(Connector):
 
         cache = self._token_cache()
         os.makedirs(os.path.dirname(cache) or ".", exist_ok=True)  # spotipy silently skips caching if the parent dir is missing
-        # Request the full read+write set up front. Reads cover the user's own
-        # private and collaborative playlists (followed playlists stay unreadable —
-        # that's a Spotify dev-mode limit, not a scope gap). Modify is needed
-        # whenever Spotify is a write target (any N-way sync, or a one-way sync
-        # sourced from another provider); per-job modes make a connect-time "is it
-        # needed?" check unreliable, so grant it once rather than force re-auth later.
-        scope = ("playlist-read-private playlist-read-collaborative "
-                 "playlist-modify-private playlist-modify-public")
+        # Grant the full read+write set up front (SPOTIFY_SCOPE, shared with the
+        # engine client). Reads cover the user's own private and collaborative
+        # playlists (followed playlists stay unreadable — a Spotify dev-mode limit,
+        # not a scope gap); modify is needed whenever Spotify is a write target.
+        # Granting once avoids a re-auth when a later sync makes Spotify writable,
+        # and — because engine and connector request the identical scope — spotipy's
+        # per-refresh scope rewrite can never narrow the cached token.
         return SpotifyOAuth(
             client_id=self._store.get("SPOTIFY_CLIENT_ID"),
             client_secret=self._store.get("SPOTIFY_CLIENT_SECRET"),
             redirect_uri=redirect_uri,
-            scope=scope,
+            scope=SPOTIFY_SCOPE,
             cache_path=cache,
             open_browser=False,
         )

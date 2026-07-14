@@ -22,6 +22,14 @@ DEFAULT_PROVIDERS = "spotify,apple,ytmusic"           # providers participating 
 DEFAULT_SYNC_SOURCE = "spotify"                       # one-way source of truth (any connected provider)
 DEFAULT_SPOTIFY_CACHE_FILE = "spotify_resolve_cache.json"
 
+# OAuth grant requested BOTH at connect time (the connector) and by the engine's
+# per-pass client. They MUST stay identical: spotipy overwrites the cached token's
+# stored scope with the requesting client's scope on every refresh, so a client
+# that asked for a narrower set would silently strip the modify scopes from the
+# cache and make the next N-way (writable) pass demand a reconnect.
+SPOTIFY_SCOPE = ("playlist-read-private playlist-read-collaborative "
+                 "playlist-modify-private playlist-modify-public")
+
 
 def required_env(var_name):
     value = os.getenv(var_name)
