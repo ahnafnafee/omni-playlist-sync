@@ -39,6 +39,17 @@ def test_settings_falls_back_to_env(tmp_path, monkeypatch):
         assert client.get("/api/settings").json()["MAX_ADDS"] == "321"
 
 
+def test_settings_store_uses_data_dir_env(tmp_path, monkeypatch):
+    # In Docker, OMNI_DATA_DIR points at the persistent /data volume — the store
+    # must write there (not the container-relative ./data default) so wizard
+    # config + secrets survive a rebuild.
+    vol = tmp_path / "vol"
+    monkeypatch.setenv("OMNI_DATA_DIR", str(vol))
+    SettingsStore().save({"SPOTIFY_CLIENT_ID": "cid"})
+    assert (vol / "settings.json").exists() and (vol / "app.env").exists()
+    assert SettingsStore().get("SPOTIFY_CLIENT_ID") == "cid"  # a fresh store reads it back
+
+
 def test_spotify_redirect_uri_forces_loopback_ip(tmp_path):
     # Spotify rejects `localhost` for http loopback redirects — the callback URI
     # must be normalized to the explicit 127.0.0.1 IP no matter how the app is

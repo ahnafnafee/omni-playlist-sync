@@ -16,6 +16,7 @@ services:
       # LAN-only — do NOT port-forward this to the internet (the UI has no login).
       - "8888:8080"
     environment:
+      OMNI_DATA_DIR: /data           # persistent volume for settings, tokens, caches, syncs, links
       OMNI_ENV_FILE: /data/app.env   # SettingsStore's managed env; wizard saves win over any .env
       SPOTIFY_TOKEN_CACHE: /data/spotify_token_cache
       APPLE_CACHE_FILE: /data/apple_resolve_cache.json

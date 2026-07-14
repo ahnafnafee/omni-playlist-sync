@@ -36,7 +36,7 @@ def create_app(settings=None, bus=None, sync_service=None, links=None, transfers
     bus = bus or EventBus()
     syncs = syncs or SyncStore(dir=Path(settings.env_path).parent)
     sync_service = sync_service or SyncService(settings, bus, syncs)
-    links = links or LinkStore()
+    links = links or LinkStore(dir=Path(settings.env_path).parent)
     transfers = transfers or TransferService(settings, bus, sync_service)
 
     @asynccontextmanager

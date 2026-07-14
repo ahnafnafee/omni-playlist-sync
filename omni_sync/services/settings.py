@@ -35,8 +35,11 @@ def _open_private(path):
 
 
 class SettingsStore:
-    def __init__(self, dir="data"):
-        self._dir = Path(dir)
+    def __init__(self, dir=None):
+        # Default to $OMNI_DATA_DIR (Docker points it at the /data bind mount) so
+        # wizard-saved config + OAuth secrets land on the persistent volume, not
+        # the container's ephemeral filesystem. Falls back to a local ./data.
+        self._dir = Path(dir or os.getenv("OMNI_DATA_DIR") or "data")
         self._dir.mkdir(parents=True, exist_ok=True)
         try:
             os.chmod(self._dir, 0o700)  # keep the secrets dir owner-only (best-effort; POSIX)
