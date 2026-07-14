@@ -108,10 +108,6 @@ Omni Playlist Sync keeps your playlists identical everywhere without manual re-a
 
 <img src="./.github/assets/sync-wizard.png" alt="The Omni Playlist Sync setup wizard: choosing a one-way or bidirectional (N-way) direction for a sync job" width="82%">
 
-**Transfer a playlist between services, live — with pause / resume / stop and manual conflict resolution**
-
-<img src="./.github/assets/transfers.png" alt="Transferring a Spotify playlist to Apple Music with a live progress bar, added-so-far counter, pause and stop controls, and a panel to resolve tracks that could not be matched automatically" width="82%">
-
 **Connect every service in your browser — one-click OAuth, guided token paste, or an API key**
 
 <img src="./.github/assets/accounts.png" alt="The Accounts page for connecting Spotify, Apple Music, YouTube Music, and Jellyfin" width="82%">
