@@ -28,3 +28,7 @@ downloads/
 # Obsolete state from the old Apple->Spotify direction
 synced_isrcs.json
 apple_spotify_uri_cache.json
+
+# Remotion promo project
+promo/node_modules
+promo/out

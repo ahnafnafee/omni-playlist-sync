@@ -1,0 +1,4 @@
+# esbuild ships its Windows binary via an optional platform package, so its
+# build script is effectively a no-op here; approve it to keep installs clean.
+allowBuilds:
+  esbuild: true

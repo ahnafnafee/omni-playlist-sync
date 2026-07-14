@@ -33,7 +33,9 @@ A free, open-source, **self-hosted alternative to Soundiiz, TuneMyMusic, and Fre
 
 <sup>Set it up once — every playlist you curate stays mirrored across every service, in date-added order.</sup>
 
-<img src="./.github/assets/dashboard.png" alt="Omni Playlist Sync dashboard showing sync status, configured sync jobs, a live activity feed, and connected Spotify, Apple Music, YouTube Music, and Jellyfin services" width="88%">
+<a href="./.github/assets/omni-sync-demo.mp4"><img src="./.github/assets/omni-sync-demo.gif" alt="Omni Playlist Sync demo — logo reveal, dashboard, one-way and bidirectional sync setup, live playlist transfers, and ISRC-accurate matching across Spotify, Apple Music, and YouTube Music" width="88%"></a>
+
+<sup>▶ <a href="./.github/assets/omni-sync-demo.mp4">Watch the 1080p version</a></sup>
 
 </div>
 
@@ -97,6 +99,10 @@ Omni Playlist Sync keeps your playlists identical everywhere without manual re-a
 ## 📸 Screenshots
 
 <div align="center">
+
+**One dashboard for every library — sync status, jobs, live activity, and service health**
+
+<img src="./.github/assets/dashboard.png" alt="Omni Playlist Sync dashboard showing sync status, configured sync jobs, a live activity feed, and connected Spotify, Apple Music, YouTube Music, and Jellyfin services" width="82%">
 
 **Set up any number of syncs — one-way or bidirectional — in a short wizard**
 
