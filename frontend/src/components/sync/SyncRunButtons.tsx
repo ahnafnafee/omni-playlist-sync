@@ -9,7 +9,10 @@ import type { SyncJob } from '@/types'
 
 interface Props {
   job: SyncJob
-  /** True while any pass is running — only one runs at a time. */
+  /** True while THIS job is already running or queued — guards against
+   * re-triggering the same job. Passes are serialized backend-side but run
+   * across jobs, so triggering a different, idle job is always allowed; the
+   * backend queues it behind whatever's currently running. */
   disabled?: boolean
   onChanged: () => void
   size?: ButtonSize

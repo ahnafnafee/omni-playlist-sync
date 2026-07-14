@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LuPencil, LuTrash2 } from 'react-icons/lu'
+import { LuClock, LuPencil, LuTrash2 } from 'react-icons/lu'
 
 import { api, errorMessage } from '@/api'
 import { Button } from '@/components/ui/Button'
@@ -19,8 +19,11 @@ interface Props {
    * GET /api/sync/status's `jobs[].running` — guards against a double
    * "Sync now" and shows a live badge. */
   running: boolean
-  /** True while ANY job is running — only one pass runs at a time. */
-  anyRunning: boolean
+  /** Triggered but waiting behind the currently-running pass, per
+   * `jobs[].queued` (passes are serialized — other jobs can still be
+   * queued up while one runs). Shows a "Queued" badge and, like `running`,
+   * guards against re-triggering this same job. */
+  queued: boolean
   onEdit: () => void
   onChanged: () => void
 }
@@ -31,7 +34,7 @@ interface Props {
  * (matching AccountCard's pattern) — the wizard (via Edit) is the only
  * place the job's actual config fields are changed; this card is for
  * at-a-glance management. */
-export function SyncJobCard({ job, peers, running, anyRunning, onEdit, onChanged }: Props) {
+export function SyncJobCard({ job, peers, running, queued, onEdit, onChanged }: Props) {
   const [togglingEnabled, setTogglingEnabled] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -86,6 +89,12 @@ export function SyncJobCard({ job, peers, running, anyRunning, onEdit, onChanged
                 Running
               </span>
             )}
+            {queued && !running && (
+              <span className="inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full bg-neutral-soft px-2 text-[11px] font-semibold text-neutral">
+                <LuClock className="size-3 shrink-0" aria-hidden="true" />
+                Queued
+              </span>
+            )}
             {!job.enabled && (
               <span className="inline-flex h-[22px] shrink-0 items-center rounded-full bg-neutral-soft px-2.5 text-[11.5px] font-semibold text-neutral">
                 paused
@@ -109,7 +118,7 @@ export function SyncJobCard({ job, peers, running, anyRunning, onEdit, onChanged
       {error && <p className="text-xs text-danger">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        <SyncRunButtons job={job} disabled={anyRunning} onChanged={onChanged} />
+        <SyncRunButtons job={job} disabled={running || queued} onChanged={onChanged} />
         <Button variant="secondary" size="sm" icon={<LuPencil className="size-3.5" aria-hidden="true" />} onClick={onEdit}>
           Edit
         </Button>

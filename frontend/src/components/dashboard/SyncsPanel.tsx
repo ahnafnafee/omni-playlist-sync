@@ -52,11 +52,19 @@ export function SyncsPanel({
               .filter((r) => r.label !== 'Schedule')
               .map((r) => r.value)
               .join(' · ')
+            const jobStatus = status?.jobs.find((j) => j.id === job.id)
+            const running = jobStatus?.running ?? false
+            const queued = jobStatus?.queued ?? false
             return (
               <li key={job.id} className="flex flex-col gap-2.5 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-[13.5px] font-semibold text-text">{job.name}</span>
+                    {queued && !running && (
+                      <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-neutral-soft px-1.5 text-[10px] font-semibold text-neutral">
+                        queued
+                      </span>
+                    )}
                     {!job.enabled && (
                       <span className="inline-flex h-[18px] shrink-0 items-center rounded-full bg-neutral-soft px-1.5 text-[10px] font-semibold text-neutral">
                         paused
@@ -66,7 +74,7 @@ export function SyncsPanel({
                   <p className="mt-0.5 truncate text-xs text-text-3">{summary}</p>
                   <p className="mt-0.5 font-mono text-[10px] tracking-wide text-text-3">Next run: {nextRunText(job, status)}</p>
                 </div>
-                <SyncRunButtons job={job} disabled={Boolean(status?.running)} onChanged={onChanged} />
+                <SyncRunButtons job={job} disabled={running || queued} onChanged={onChanged} />
               </li>
             )
           })}
