@@ -41,25 +41,29 @@ interface PickerSource {
   hasConnectedAccounts: boolean
 }
 
-/** Spotify is the source of truth, so its own playlists are what "which of
- * my playlists to mirror" actually means — prefer it. Without Spotify, fall
- * back to the union of whatever else is connected, deduped by casefolded
- * name (the same playlist can legitimately exist on more than one service). */
-function usePickerSource(): PickerSource {
+/** Pins the picker to whichever provider is actually meaningful for the
+ * caller (e.g. the sync wizard's own one-way source of truth, or its N-way
+ * pick) when it's connected — "which of my playlists to mirror" has to mean
+ * THAT provider's playlists, not always Spotify's. Spotify is only the
+ * default when the caller has no opinion (`preferredProviderId` omitted) or
+ * its preference isn't connected; without Spotify either, falls back to the
+ * union of whatever else is connected, deduped by casefolded name (the same
+ * playlist can legitimately exist on more than one service). */
+function usePickerSource(preferredProviderId?: string | null): PickerSource {
   const { accounts } = useAccounts()
   const connected = useMemo(() => accounts?.filter((a: Account) => a.state === 'connected') ?? [], [accounts])
   const connectedIds = useMemo(() => connected.map((a) => a.id), [connected])
   const { entries } = useProviderPlaylists(connectedIds)
-  const spotify = connected.find((a) => a.id === 'spotify')
+  const pinned = connected.find((a) => a.id === (preferredProviderId || 'spotify'))
 
   return useMemo<PickerSource>(() => {
     const hasConnectedAccounts = connected.length > 0
 
-    if (spotify) {
-      const entry = entries.spotify
+    if (pinned) {
+      const entry = entries[pinned.id]
       return {
-        providerId: 'spotify',
-        providerLabel: 'Spotify',
+        providerId: pinned.id,
+        providerLabel: pinned.name,
         playlists: entry?.playlists ?? [],
         loading: !entry || entry.loading,
         error: entry?.error ?? null,
@@ -90,7 +94,7 @@ function usePickerSource(): PickerSource {
       error: allSettled && seen.size === 0 ? 'Could not load playlists from any connected service.' : null,
       hasConnectedAccounts,
     }
-  }, [connected, entries, spotify])
+  }, [connected, entries, pinned])
 }
 
 function PlaylistOptionRow({ playlist, selected, onToggle }: { playlist: ProviderPlaylist; selected: boolean; onToggle: () => void }) {
@@ -141,6 +145,11 @@ interface PlaylistFilterFieldProps {
    * this component only makes editing that string friendlier. */
   value: string
   onChange: (value: string) => void
+  /** Which provider's playlists to browse — e.g. the sync wizard's own
+   * one-way source of truth, or its N-way pick. Omit for the original
+   * Settings-page behavior (Spotify if connected, else a union of
+   * everything connected). */
+  preferredProviderId?: string | null
 }
 
 /** Lets a user pick which playlists the "playlist filter" setting names,
@@ -149,8 +158,8 @@ interface PlaylistFilterFieldProps {
  * that don't match any fetched playlist survive as removable manual chips
  * rather than being silently dropped, and a collapsible raw field covers
  * offline entry / anything the picker can't reach. */
-export function PlaylistFilterField({ value, onChange }: PlaylistFilterFieldProps) {
-  const source = usePickerSource()
+export function PlaylistFilterField({ value, onChange, preferredProviderId }: PlaylistFilterFieldProps) {
+  const source = usePickerSource(preferredProviderId)
   const [search, setSearch] = useState('')
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
@@ -204,7 +213,7 @@ export function PlaylistFilterField({ value, onChange }: PlaylistFilterFieldProp
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[12.5px] font-semibold text-text-2">
-          {source.providerId === 'spotify' ? 'Spotify playlists' : 'Playlists to sync'}
+          {source.providerId ? `${source.providerLabel} playlists` : 'Playlists to sync'}
         </span>
         {isEmpty ? (
           <span className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-chip bg-accent-soft px-2 text-[11px] font-semibold text-accent">
@@ -259,7 +268,7 @@ export function PlaylistFilterField({ value, onChange }: PlaylistFilterFieldProp
       {manualNames.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <span className="text-[11.5px] text-text-3">
-            Also included, not found on {source.providerId === 'spotify' ? 'Spotify' : 'a connected service'}:
+            Also included, not found on {source.providerId ? source.providerLabel : 'a connected service'}:
           </span>
           <div className="flex flex-wrap gap-1.5">
             {manualNames.map((name) => (

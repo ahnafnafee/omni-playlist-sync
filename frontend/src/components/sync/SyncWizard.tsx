@@ -269,6 +269,16 @@ export function SyncWizard({ open, onClose, job, accounts, onSaved }: Props) {
 
   const enabledProviders = enabledProvidersOf({ providers: form.providers }, syncPeers)
 
+  // Step 3's playlist picker has to browse whichever provider is actually
+  // meaningful for this job, not always Spotify (the picker's original,
+  // single-sync-era default): the one-way source of truth in one-way mode,
+  // or — N-way has no single source — Spotify if it's a participating peer,
+  // else the first participating peer in syncPeers order. Recomputed on
+  // every render, so going back to Direction/Services and changing the
+  // source/participants immediately reflects here too.
+  const playlistPickerProviderId =
+    form.mode !== 'nway' ? syncSource : (enabledProviders.has('spotify') ? 'spotify' : syncPeers.find((a) => enabledProviders.has(a.id))?.id) || null
+
   function toggleProvider(id: string) {
     if (id === lockedSourceId) return // the source — never toggleable
     const next = new Set(enabledProviders)
@@ -438,7 +448,13 @@ export function SyncWizard({ open, onClose, job, accounts, onSaved }: Props) {
             </div>
           )}
 
-          {step === 2 && <PlaylistFilterField value={form.playlists} onChange={(v) => setField('playlists', v)} />}
+          {step === 2 && (
+            <PlaylistFilterField
+              value={form.playlists}
+              onChange={(v) => setField('playlists', v)}
+              preferredProviderId={playlistPickerProviderId}
+            />
+          )}
 
           {step === 3 && (
             <>
