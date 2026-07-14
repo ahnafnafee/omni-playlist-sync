@@ -59,3 +59,43 @@ def test_ytmusic_browser_backend_maps_shapes_and_is_selected(monkeypatch, tmp_pa
     t = tracks[0]
     assert (t["videoId"], t["setVideoId"], t["artist"], t["duration_ms"]) == ("v1", "s1", "A, B", 200000)
     assert target.list_playlists() == {"mix": {"playlistId": "p1", "title": "Mix", "count": "12 songs"}}
+
+
+def test_apple_playlist_count_uses_meta_total_and_caches():
+    # Apple library playlists carry no trackCount, so the count comes from the
+    # tracks endpoint's meta.total, cached against lastModifiedDate (one call per
+    # playlist, re-fetched only when the playlist changes).
+    from omni_sync.engine.targets import apple
+
+    apple._COUNT_CACHE.clear()
+    target = apple.AppleMusicTarget.__new__(apple.AppleMusicTarget)
+    calls = []
+
+    def fake_request(method, url, params=None):
+        calls.append(url)
+        return type("R", (), {"json": staticmethod(lambda: {"data": [{}], "meta": {"total": 42}})})()
+
+    target._request = fake_request
+    pl = {"id": "p1", "attributes": {"lastModifiedDate": "2026-01-01"}}
+    assert target.playlist_count(pl) == 42
+    assert target.playlist_count(pl) == 42 and len(calls) == 1  # cached, no 2nd call
+    changed = {"id": "p1", "attributes": {"lastModifiedDate": "2026-02-01"}}
+    assert target.playlist_count(changed) == 42 and len(calls) == 2  # re-fetched on change
+
+
+def test_jellyfin_list_playlists_fills_counts(monkeypatch):
+    # ChildCount isn't populated for playlists in the list query, so counts are
+    # a concurrent per-playlist TotalRecordCount lookup.
+    from omni_sync.engine import jellyfin
+
+    monkeypatch.setenv("JELLYFIN_URL", "http://jf")
+    monkeypatch.setenv("JELLYFIN_API_KEY", "k")
+    monkeypatch.delenv("JELLYFIN_USER_ID", raising=False)
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        is_list = params.get("IncludeItemTypes") == "Playlist"
+        body = {"Items": [{"Id": "p1", "Name": "Mix", "ImageTags": {}}]} if is_list else {"TotalRecordCount": 7}
+        return type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: body})()
+
+    monkeypatch.setattr(jellyfin.requests, "get", fake_get)
+    assert jellyfin.list_playlists() == [{"id": "p1", "name": "Mix", "count": 7, "image": ""}]

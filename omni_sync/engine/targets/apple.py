@@ -12,6 +12,11 @@ from ..logs import log, log_warn
 from ..matching import normalize_text, romanized, score_candidate
 from .base import MirrorTarget, TargetAuthError
 
+# playlist_id -> (lastModifiedDate, track_count): in-process cache so the browse
+# doesn't re-issue a meta.total call for an unchanged Apple playlist (library
+# playlists carry no trackCount attribute, so each count is a live lookup).
+_COUNT_CACHE = {}
+
 
 def _chunks(seq, size):
     for i in range(0, len(seq), size):
@@ -139,7 +144,22 @@ class AppleMusicTarget(MirrorTarget):
         return track.get("catalog_id")
 
     def playlist_count(self, playlist):
-        return playlist.get("attributes", {}).get("trackCount")
+        # Library-playlist attributes carry no trackCount, so read it from the
+        # tracks endpoint's meta.total (one light limit=1 call). Cached against
+        # the playlist's lastModifiedDate so it's recomputed only when it changes.
+        pid = playlist.get("id")
+        mod = playlist.get("attributes", {}).get("lastModifiedDate")
+        hit = _COUNT_CACHE.get(pid)
+        if hit and hit[0] == mod:
+            return hit[1]
+        try:
+            data = self._request("GET", f"{AMP}/me/library/playlists/{pid}/tracks",
+                                  params={"limit": 1}).json()
+            count = data.get("meta", {}).get("total")
+        except Exception:
+            return hit[1] if hit else None
+        _COUNT_CACHE[pid] = (mod, count)
+        return count
 
     def playlist_name(self, playlist):
         return playlist.get("attributes", {}).get("name", "")

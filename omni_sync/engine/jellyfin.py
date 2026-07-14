@@ -9,12 +9,28 @@ playlist must already exist in Jellyfin (scanned from the m3u) to be matched.
 
 import base64
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
 from .logs import log_download, log_note, log_warn
 
 TAG = "jelly"
+
+
+def _track_count(url, key, playlist_id):
+    """A Jellyfin playlist's audio-track count via TotalRecordCount — ChildCount
+    isn't populated for playlists in the list query, so this is a per-playlist
+    lookup. Returns None on any failure (count is best-effort)."""
+    try:
+        r = requests.get(url + "/Items", headers={"X-Emby-Token": key}, timeout=30,
+                         params={"ParentId": playlist_id, "Recursive": "true",
+                                 "IncludeItemTypes": "Audio", "Limit": 0,
+                                 "EnableTotalRecordCount": "true"})
+        r.raise_for_status()
+        return r.json().get("TotalRecordCount")
+    except Exception:
+        return None
 
 
 def push_covers(playlists):
@@ -81,8 +97,7 @@ def list_playlists():
     path = f"/Users/{uid}/Items" if uid else "/Items"
     try:
         r = requests.get(url + path, headers={"X-Emby-Token": key}, timeout=30,
-                         params={"IncludeItemTypes": "Playlist", "Recursive": "true",
-                                 "Fields": "ChildCount"})
+                         params={"IncludeItemTypes": "Playlist", "Recursive": "true"})
         r.raise_for_status()
     except Exception as e:
         log_warn(f"playlist list failed: {e!r}", tag=TAG)
@@ -95,6 +110,12 @@ def list_playlists():
         has_primary = (item.get("ImageTags") or {}).get("Primary")
         # Jellyfin serves item images without a token, so the browser can load
         # this URL directly; omit it when the playlist has no Primary image.
-        rows.append({"id": iid, "name": name, "count": item.get("ChildCount"),
+        rows.append({"id": iid, "name": name, "count": None,
                      "image": f"{url}/Items/{iid}/Images/Primary" if has_primary else ""})
+    # Counts aren't in the list response, so fetch each concurrently (local
+    # server — parallel is cheap; a failed lookup leaves count=None).
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        counts = list(ex.map(lambda row: _track_count(url, key, row["id"]), rows))
+    for row, count in zip(rows, counts):
+        row["count"] = count
     return rows
