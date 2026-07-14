@@ -1,228 +1,302 @@
-# 🎵 Omni Playlist Sync
+<div align="center"><a name="readme-top"></a>
 
-[![CI](https://github.com/ahnafnafee/omni-playlist-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/ahnafnafee/omni-playlist-sync/actions/workflows/ci.yml)
-![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue)
-![License: MIT](https://img.shields.io/badge/license-MIT-green)
-![Docker ready](https://img.shields.io/badge/docker-ready-2496ED)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./.github/assets/wordmark-dark.png">
+  <img src="./.github/assets/wordmark-light.png" alt="Omni Playlist Sync" width="440">
+</picture>
 
-**Always-on playlist sync: Spotify → Apple Music, YouTube Music, and local
-audio files (Jellyfin-ready) — with an optional bidirectional mode.** Set it up
-once, and every playlist you curate on Spotify stays mirrored everywhere —
-tracks added on Spotify appear on the other services in date-added order, tracks
-you remove disappear, and an optional download mirror keeps offline copies
-organized for your media server. Flip on [N-way mode](#bidirectional-n-way-sync)
-and a change made on *any* provider propagates to the others.
+# Omni Playlist Sync
 
-## Web GUI (self-hosted)
+Self-hosted, always-on **playlist sync for Spotify, Apple Music, and YouTube Music** — plus a local, Jellyfin-ready audio mirror.<br/>
+A free, open-source, **self-hosted alternative to Soundiiz, TuneMyMusic, and FreeYourMusic** that _you_ own and run.
 
-Prefer clicking to editing `.env`? A built-in web app (FastAPI + a React SPA)
-lets you connect each service in your browser, set up one or more syncs,
-transfer playlists between services, run a pass on demand, and watch every
-match/add/remove stream live.
+**One-way mirror or full bidirectional (N-way) sync · one-off playlist transfers · ISRC-accurate matching · all from your browser**
+
+[Quick Start](#-quick-start) · [Features](#-features) · [Screenshots](#-screenshots) · [Docker](#-always-running-docker) · [How it works](#-how-it-works) · [Report Bug][github-issues-link] · [Request Feature][github-issues-link]
+
+<!-- SHIELD GROUP -->
+
+[![CI][ci-shield]][ci-link]
+[![License][license-shield]][license-link]
+[![Python][python-shield]][python-link]
+[![Docker][docker-shield]][docker-link]<br/>
+[![Stars][stars-shield]][stars-link]
+[![Forks][forks-shield]][forks-link]
+[![Issues][issues-shield]][issues-link]
+[![Last commit][last-commit-shield]][last-commit-link]
+
+**Share this project**
+
+[![][share-x-shield]][share-x-link]
+[![][share-reddit-shield]][share-reddit-link]
+[![][share-linkedin-shield]][share-linkedin-link]
+
+<sup>Set it up once — every playlist you curate stays mirrored across every service, in date-added order.</sup>
+
+<img src="./.github/assets/dashboard.png" alt="Omni Playlist Sync dashboard showing sync status, configured sync jobs, a live activity feed, and connected Spotify, Apple Music, YouTube Music, and Jellyfin services" width="88%">
+
+</div>
+
+> \[!NOTE]
+> **Web app + headless CLI, one engine.** Click through a browser UI to connect services, build syncs, and transfer playlists — or run it `.env` + cron style. Both drive the same sync core.
+
+<details>
+<summary><kbd>Table of contents</kbd></summary>
+
+#### TOC
+
+- [✨ Features](#-features)
+- [📸 Screenshots](#-screenshots)
+- [🚀 Quick Start](#-quick-start)
+- [🐳 Always running: Docker](#-always-running-docker)
+- [⚙️ How it works](#-how-it-works)
+  - [Matching](#matching)
+  - [Bidirectional (N-way) sync](#bidirectional-n-way-sync)
+- [💿 Local download mirror (Jellyfin)](#-local-download-mirror-jellyfin)
+- [🔌 Connecting each service](#-connecting-each-service)
+  - [Spotify](#spotify)
+  - [Apple Music](#apple-music)
+  - [YouTube Music](#youtube-music)
+- [🖥️ Headless CLI](#️-headless-cli)
+- [🛡️ Safety rails](#️-safety-rails)
+- [🗃️ Caching &amp; song archive](#️-caching--song-archive)
+- [🧱 Project layout](#-project-layout)
+- [🩺 Troubleshooting](#-troubleshooting)
+- [📄 License](#-license)
+
+####
+
+<br/>
+
+</details>
+
+## ✨ Features
+
+Omni Playlist Sync keeps your playlists identical everywhere without manual re-adding, one-by-one copying, or a paid cloud service holding your library. It is **cross-platform, self-hosted, and open source**.
+
+- 🔁 **True mirroring, not append-only** — adds _and_ removals. Choose a source of truth (Spotify by default) and the others follow it.
+- ⇄ **Bidirectional N-way sync** — an add or removal on _any_ connected service propagates to all the others, echo-free, behind removal guards.
+- 🎯 **ISRC-accurate matching** — exact recording identity where available, with Unicode-aware fuzzy title/artist/duration fallbacks (feat-credit drift, "- 2015 Remaster" suffixes, non-Latin scripts, video-only uploads — all handled).
+- 🎛️ **Multiple named syncs** — set up as many independent syncs as you like, each with its own services, playlists, schedule, and safety caps.
+- ↪️ **One-off transfers** — copy any playlist from one service to another with a live progress bar; **pause, resume, or stop** mid-copy, and manually resolve unmatched tracks.
+- 🌐 **Followed playlists** — sync and transfer playlists you follow but don't own, not just ones you created.
+- 💿 **Local download mirror** — keep offline audio, one folder per playlist in **Jellyfin's** `AlbumArtist/Album` layout, with covers and an auto-updated `.m3u8`.
+- 🛡️ **Safety rails** — dry-run by default, per-pass add/removal caps, net-loss protection, empty-snapshot guard, fail-closed on expired tokens.
+- 🗃️ **Ever-growing song archive** — every track ever seen is recorded in a local SQLite database (name, artist, album, ISRC, raw metadata, first/last seen).
+- 🐳 **Runs anywhere** — one `docker compose up -d` for the browser app, or plain CLI + cron / Task Scheduler.
+
+> \[!IMPORTANT]
+> **Self-hosted and private by design.** Your listening data and credentials never leave your machine. The web UI has **no login** — bind it to your LAN and don't port-forward it to the internet.
+
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## 📸 Screenshots
+
+<div align="center">
+
+**Set up any number of syncs — one-way or bidirectional — in a short wizard**
+
+<img src="./.github/assets/sync-wizard.png" alt="The Omni Playlist Sync setup wizard: choosing a one-way or bidirectional (N-way) direction for a sync job" width="82%">
+
+**Transfer a playlist between services, live — with pause / resume / stop and manual conflict resolution**
+
+<img src="./.github/assets/transfers.png" alt="Transferring a Spotify playlist to Apple Music with a live progress bar, added-so-far counter, pause and stop controls, and a panel to resolve tracks that could not be matched automatically" width="82%">
+
+**Connect every service in your browser — one-click OAuth, guided token paste, or an API key**
+
+<img src="./.github/assets/accounts.png" alt="The Accounts page for connecting Spotify, Apple Music, YouTube Music, and Jellyfin" width="82%">
+
+**Browse and pair playlists across services**
+
+<img src="./.github/assets/playlists.png" alt="Browsing playlists across connected services with cover art and track counts" width="82%">
+
+</div>
+
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## 🚀 Quick Start
+
+The fastest way to run it is Docker — the container serves the web UI and runs your syncs on schedule.
 
 ```bash
-docker compose up -d          # then open http://<host>:8888 and set it up in the browser
+git clone https://github.com/ahnafnafee/omni-playlist-sync.git
+cd omni-playlist-sync
+docker compose up -d
 ```
 
-Or run it directly:
+Then open **`http://localhost:8888`** and connect your services in the browser. That's it — **no `.env` to edit**; everything is configured in the UI and saved under `./data`.
+
+Prefer running it without Docker?
 
 ```bash
 uv sync
 uv run uvicorn omni_sync.web:app --host 0.0.0.0 --port 8080   # then open http://127.0.0.1:8080
-# frontend hot-reload during development: pnpm -C frontend install && pnpm -C frontend dev
 ```
 
-- **Connect accounts in the browser** — one-click OAuth for Spotify and YouTube
-  Music (you supply your own app's client id/secret once), guided token paste for
-  Apple Music, an API key for Jellyfin. The wizard shows the exact redirect URI to
-  whitelist. No hand-editing `.env`.
-- **Set up multiple named syncs** — a step-by-step wizard builds each one (one-way
-  from any source, or N-way), with its own participating services, playlist scope,
-  schedule, and safety caps. Every sync runs on its own timer, and active syncs
-  show on the dashboard.
-- **Pair playlists across services** — browse each service's playlists and
-  explicitly link differently-named ones (e.g. Spotify "Workout" ↔ Apple "Gym
-  Music"), overriding the default same-name matching.
-- **Transfer a playlist one-off** — copy any playlist from one service to another
-  (into a new destination or an existing one) with a live progress bar, and pause,
-  resume, or stop it mid-copy. Ongoing transfers show on the dashboard, so they
-  keep running after you close the tab.
-- **Followed playlists too** — playlists you follow but don't own can be synced and
-  transferred, not just ones you created.
-- **Live sync view** — a real-time feed of matches, adds, removals, and holds as a
-  pass runs, with per-service counters.
-- **Dry-run by default** — run any sync on demand or let its schedule fire; every
-  pass previews before it writes.
-- **Responsive** — works on a phone.
+> Requires [`uv`](https://docs.astral.sh/uv/) (Python 3.13+). For the local download mirror, also `uv tool install spotdl` and have `ffmpeg` on PATH.
 
-> **Security:** the UI has no login and stores your service credentials on disk
-> (owner-only under `data/`). Bind it to your LAN only — **do not port-forward it
-> to the internet.** A password gate is the intended next step before any exposure.
+<div align="right">
 
-The headless CLI below still works for anyone who prefers `.env` + cron / Task
-Scheduler.
+[![][back-to-top]](#readme-top)
 
-## Features
+</div>
 
-- 🔁 **True mirroring** — adds *and* removals, not append-only. Spotify is the
-  source of truth; Apple Music and YouTube Music follow.
-- ⇄ **Optional N-way sync** — bidirectional mode where a track added or removed
-  on Spotify, Apple, *or* YouTube Music propagates to all the others, echo-free,
-  behind the same removal guards.
-- 🎯 **ISRC-first matching** — exact recording identity where available, with
-  Unicode-aware fuzzy title/artist/duration fallbacks (feat-credit drift,
-  "- 2015 Remaster" suffixes, non-Latin scripts all handled).
-- 🗂 **Same-name pairing + auto-create** — playlists link by name; missing ones
-  are created with the Spotify name and description copied.
-- 📥 **Local download mirror** ([spotDL](https://github.com/spotDL/spotify-downloader))
-  — one folder per playlist in Jellyfin's `AlbumArtist/Album` layout, tagged
-  with cover art, plus an auto-updated `.m3u8` per playlist.
-- 🕒 **Date-added ordering** — tracks are appended one by one, oldest first, so
-  every mirrored playlist stays sorted by date added (newest last).
-- 🛡 **Safety rails** — dry-run by default, per-pass add/removal caps,
-  net-loss protection, empty-snapshot guard, fail-closed on expired tokens.
-- ⚡ **Fast re-runs** — Spotify `snapshot_id` skip, hard identifier links, and
-  resolution caches make steady-state passes near-instant; Apple and YT Music
-  mirrors run in parallel.
-- 🚦 **Rate-limit friendly** — jittered pacing, exponential backoff on
-  403/429, sequential per-service writes.
-- 🗃 **Ever-growing song archive** — every track ever seen is recorded in a
-  local SQLite database (name, artist, album, ISRC, raw metadata, first/last
-  seen).
-- 🐳 **Runs anywhere** — Docker Compose loop, Windows Task Scheduler, or plain
-  CLI.
+## 🐳 Always running: Docker
 
-## How it works
+The Docker container is the recommended deployment: it serves the web UI, runs your syncs on their schedules, and restarts with the host. It runs as **`omni-playlist-sync`** and persists all auth + caches in `./data`.
 
-Every pass, for each selected playlist name that exists on Spotify:
+```bash
+docker compose up -d --build     # build + start in the background
+# open http://<host>:8888 and connect your services + create syncs in the browser
+docker compose logs -f           # watch it work
+```
 
-1. Snapshot the Spotify playlist (tracks, ISRCs, added-at dates).
-2. Reconcile the same-named Apple Music playlist (via the web player's
-   amp-api) and YouTube Music playlist (via the official
-   [YouTube Data API v3](https://developers.google.com/youtube/v3)) —
-   concurrently.
-3. Missing tracks are resolved (cached links → ISRC → scored search) and
-   appended oldest-first; tracks gone from Spotify are removed behind guards.
-4. Optionally, spotDL syncs a local audio folder per playlist.
+**No `.env` is needed to start** — everything is configured in the browser and saved under `./data`. Connect Spotify / YouTube Music with one-click OAuth (the wizard shows the exact redirect URI to whitelist), paste your Apple Music tokens, add a Jellyfin API key — all from the Accounts page — then build your syncs on the Sync page.
 
-For the opt-in bidirectional variant, see [N-way sync](#bidirectional-n-way-sync).
+| | |
+| --- | --- |
+| **Port** | The UI is published on host **8888** (the `8888:8080` mapping in `docker-compose.yml`; change the host side if it clashes). **LAN-only** — don't port-forward it to the internet; the UI has no login yet. |
+| **Persistence** | `./data` holds credentials, tokens, caches, and the song archive. Back it up to keep your setup across rebuilds. |
+| **Downloads** | Set `DOWNLOAD_DIR` (in `.env` or your shell) to your host music dir (e.g. `F:\Torrent\Music`); compose bind-mounts it to `/music`. From Docker, set `JELLYFIN_URL` to `http://host.docker.internal:8096`. |
+| **Expired Apple tokens** | Re-paste them on the Accounts page; no restart needed. |
 
-> This project previously synced the other direction (Apple → Spotify). That
-> mode is gone; the old `synced_isrcs.json` / `apple_spotify_uri_cache.json`
-> files are obsolete and can be deleted.
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## ⚙️ How it works
+
+Every pass, for each selected playlist name that exists on the source:
+
+1. Snapshot the source playlist (tracks, ISRCs, added-at dates).
+2. Reconcile the same-named playlist on each target — Apple Music (via the web player's amp-api) and YouTube Music (via the official [YouTube Data API v3](https://developers.google.com/youtube/v3)) — concurrently.
+3. Missing tracks are resolved (cached links → ISRC → scored search) and appended oldest-first; tracks gone from the source are removed behind guards.
+4. Optionally, [spotDL](https://github.com/spotDL/spotify-downloader) syncs a local audio folder per playlist.
+
+The default source of truth is Spotify, but **one-way mode is provider-agnostic** — Apple Music or YouTube Music can be the source instead.
 
 ### Matching
 
-Same hierarchy the cross-service tools use
-([TuneLink](https://tommcfarlin.com/case-study-tunelink-matching-music-ai/),
-MusicBrainz): **hard identifier → search → fuzzy score**.
+Same hierarchy the cross-service tools use ([TuneLink](https://tommcfarlin.com/case-study-tunelink-matching-music-ai/), MusicBrainz): **hard identifier → search → fuzzy score**.
 
-1. **Cached link** — once a Spotify track is matched to an Apple catalog id /
-   YT videoId, that link is stored and reused (immune to title drift).
-2. **ISRC** — exact recording identity where the service exposes it (Apple).
-3. **Scored search** — [RapidFuzz](https://rapidfuzz.com/) `token_set_ratio`
-   (order-, subset- and decoration-tolerant) + Jaro-Winkler, over both the raw
-   and **romanized** ([anyascii](https://github.com/anyascii/anyascii)) title
-   and artist, anchored by duration. This handles, without hardcoding:
-   - **Multi-artist credits** — Spotify lists every feature, services list the
-     primary (`Arijit Singh, Ved Sharma, …` ↔ `Arijit Singh`).
-   - **Title decoration** — `Tri` ↔ `Popeye (Bangladesh) - Tri (ত্রি) Official
-     Music Video`; `(feat. …)`, `- 2015 Remaster`, `(From "…")`.
-   - **Transliteration** — Cyrillic/Bengali/Greek/Arabic (`Камин` ↔ `Kamin`,
-     `নেশার বোঝা` ↔ `Neshar Bojha`).
-   - **Video-only tracks** — YT search falls back to the `videos` filter, since
-     many Bangla/indie/OST tracks live on YT only as uploads, not catalog songs.
+1. **Cached link** — once a source track is matched to a target's catalog id / video id, that link is stored and reused (immune to title drift).
+2. **ISRC** — exact recording identity where the service exposes it.
+3. **Scored search** — [RapidFuzz](https://rapidfuzz.com/) `token_set_ratio` + Jaro-Winkler, over both the raw and **romanized** ([anyascii](https://github.com/anyascii/anyascii)) title and artist, anchored by duration. This handles, without hardcoding:
+   - **Multi-artist credits** — one service lists every feature, another lists the primary (`Arijit Singh, Ved Sharma, …` ↔ `Arijit Singh`).
+   - **Title decoration** — `(feat. …)`, `- 2015 Remaster`, `(From "…")`, extra "Official Music Video" suffixes.
+   - **Transliteration** — Cyrillic / Bengali / Greek / Arabic (`Камин` ↔ `Kamin`, `নেশার বোঝা` ↔ `Neshar Bojha`).
+   - **Video-only tracks** — YouTube search falls back to the `videos` filter for indie/OST tracks that live on YT only as uploads.
 
-   The **duration anchor** unlocks the looser (decoration/subset) title match,
-   so a different version (`Runaway - Piano Version`) or a wrong-artist cover
-   isn't accepted when its length disagrees.
+The **duration anchor** unlocks the looser title match, so a different version (`Runaway - Piano Version`) or a wrong-artist cover isn't accepted when its length disagrees. Tracks with no confident match are reported and skipped.
 
-   **Known limit:** CJK (Japanese/Chinese) romanizes to a *Chinese* reading, so
-   kanji/kana titles that a service stores only in native script may still miss.
-   Tracks with no confident match are reported (`x Not on …`) and skipped.
+### Bidirectional (N-way) sync
 
-## Requirements
+By default one provider is the source of truth and edits flow one way. In **N-way mode** every provider is a peer: add or remove a track on Spotify, Apple Music, _or_ YouTube Music and the change propagates to the others.
 
-- Python 3.13+ and [`uv`](https://docs.astral.sh/uv/)
-- Active Apple Music subscription (for the Apple mirror)
-- Spotify account (free is fine — the Spotify side is read-only)
-- YouTube Music account (optional, for the YT mirror)
-- Docker (only for the always-running container option)
+Bidirectional sync is impossible statelessly, so each logical playlist's canonical membership is snapshotted after every clean pass. Each pass diffs every provider against that snapshot, unions the changes, and reconciles everyone to the result:
 
-## Install
+- **Echo-free** — a propagated add becomes part of the snapshot, so it's never bounced back.
+- **Add-wins** on conflict — losing a song is worse than keeping an extra one.
+- **Read-collapse guard** — if a provider suddenly reads far fewer tracks than the baseline (a transient API hiccup), it's skipped that pass so one bad read can't cascade a mass-delete.
+- **Same rails as one-way** — per-pass `MAX_ADDS` / `MAX_REMOVALS` caps and net-loss protection hold on every write side.
+
+> **Always dry-run first.** Run without `--execute` (or use **Preview** in the UI) and read the plan — it prints every proposed add/remove on every provider before anything is written.
+
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## 💿 Local download mirror (Jellyfin)
+
+Keep an offline audio copy of each synced playlist, one folder per playlist, via [spotDL](https://github.com/spotDL/spotify-downloader). Sync is true mirroring: new tracks are downloaded, removed tracks are deleted locally. The layout is **Jellyfin-ready** — point a Jellyfin music library at the download dir and both the tracks and the playlists appear, staying updated every pass:
+
+```text
+<DOWNLOAD_DIR>/
+  <Playlist>/
+    <Playlist>.m3u8          # auto-(re)generated; Jellyfin imports it as a playlist
+    cover.jpg                # the source playlist cover, highest resolution
+    <AlbumArtist>/
+      <Album>/
+        Artists - Title.mp3  # tagged + cover art embedded
+```
+
+Enable it by setting `DOWNLOAD_DIR` and installing spotDL + ffmpeg:
+
+```bash
+uv tool install spotdl       # isolated CLI; or: pipx install spotdl
+# ffmpeg required: winget install ffmpeg   (or: spotdl --download-ffmpeg)
+```
+
+- **Incremental** — after the first full download, only newly-added tracks are fetched; removed tracks (and their emptied album folders) are pruned. An interrupted run continues next pass.
+- **Newest-first `.m3u8`** — written in date-added order, newest at the top (set `LOCAL_MIRROR_ORDER=oldest` to flip). Rebuild covers / tags / mtimes from existing files with `uv run main.py --refresh-local`.
+- **Playlist covers in Jellyfin** — Jellyfin ignores a cover file next to an m3u, so set `JELLYFIN_URL` + `JELLYFIN_API_KEY` and each pass uploads the real playlist cover via the Jellyfin API.
+- **Audio quality** — the source is YouTube, so without a YT Music **Premium** cookie the ceiling is ~128–160 kbps. `LOCAL_MIRROR_FORMAT=opus` keeps YouTube's native stream without an mp3 re-encode; a Premium cookie (`LOCAL_MIRROR_COOKIE_FILE`) unlocks 256 kbps AAC.
+
+<sub>Downloading audio is for personal use of content you have access to — your call.</sub>
+
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## 🔌 Connecting each service
+
+In the web app, the **Accounts** page walks you through each service and shows the exact values to paste. You supply your own API app credentials once — nothing is proxied through a third party.
+
+### Spotify
+
+1. Create an app at <https://developer.spotify.com/dashboard> and copy its **Client ID** + **Client Secret**.
+2. Add a redirect URI — the connect wizard shows the exact one, e.g. `http://127.0.0.1:8888/oauth/spotify/callback` (Docker) or `http://127.0.0.1:8080/oauth/spotify/callback` (direct run). Spotify only allows an `http` redirect on the loopback IP, so authorize via `http://127.0.0.1:<port>`, not a LAN IP.
+
+The web UI requests read + write scopes up front (Spotify is a write target in N-way syncs and reverse transfers). The CLI reads Spotify read-only in one-way mode.
+
+### Apple Music
+
+No Apple Developer account needed — two headers from `music.apple.com` are enough. Open <https://music.apple.com>, sign in, open DevTools → **Network**, play a song, filter for `amp-api.music.apple.com`, and from any request's headers copy:
+
+- `authorization: Bearer eyJ...` → **Bearer token** (the `eyJ...` part, without `Bearer `)
+- `media-user-token: ...` → **User token** (full value)
+
+The connect wizard lets you paste the raw headers and parses the values for you. Tokens last months; re-paste them on the Accounts page when they expire.
+
+### YouTube Music
+
+Talks to the **official [YouTube Data API v3](https://developers.google.com/youtube/v3)**, whose OAuth refresh token is durable and survives restarts.
+
+1. In the [Google Cloud console](https://console.cloud.google.com), create a project, enable **YouTube Data API v3**, and create an OAuth client of type **TVs and Limited Input devices**.
+2. On the **OAuth consent screen**, set **Publishing status → In production** (leaving it in "Testing" expires the token after 7 days).
+3. In the app, paste the client ID + secret and complete the on-screen device code.
+
+> **Quota**: the Data API allows 10,000 units/day (a search costs 100, an add/remove 50). Steady-state upkeep is cheap; a big first-time backlog can hit the cap and resume the next day.
+
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## 🖥️ Headless CLI
+
+Prefer `.env` + cron / Task Scheduler? The same engine runs headless.
 
 ```bash
 uv sync
-```
-
-## Environment variables
-
-Copy `.env.example` to `.env` and fill it in.
-
-Required:
-
-- `APPLE_BEARER_TOKEN`
-- `APPLE_USER_TOKEN`
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
-
-Optional (defaults in `.env.example`):
-
-- `SPOTIFY_REDIRECT_URI` — must match your Spotify app setting
-- `PLAYLISTS` — comma-separated names to sync; empty = every same-named pair
-- `SYNC_INTERVAL` — loop sleep (`900`, `15m`, `1h`)
-- `MAX_REMOVALS` / `MAX_ADDS` — per-playlist per-pass caps (safety rails)
-- `DOWNLOAD_DIR` — enable the local download mirror
-- `APPLE_STOREFRONT` — Apple catalog storefront (default `us`)
-
-## Spotify setup
-
-1. Go to <https://developer.spotify.com/dashboard>
-2. Create an app
-3. Copy `Client ID` and `Client Secret`
-4. Add a redirect URI:
-   - **Web UI** — whatever the connect wizard shows you: the app's own callback on
-     the port you open it on, e.g. `http://127.0.0.1:8888/oauth/spotify/callback`
-     (Docker) or `http://127.0.0.1:8080/oauth/spotify/callback` (direct run).
-   - **CLI** — `http://127.0.0.1:8888/callback`, or match your `SPOTIFY_REDIRECT_URI`.
-
-Spotify only allows an `http` redirect on the loopback IP, so authorize via
-`http://127.0.0.1:<port>`, not a LAN IP. The CLI reads Spotify **read-only**
-(`playlist-read-private`) in one-way mode and adds `playlist-modify-*` for N-way;
-the web UI requests read + write up front, since Spotify is a write target in any
-N-way sync or a one-way sync sourced from another provider.
-
-## Apple token retrieval
-
-The two headers from `music.apple.com` are enough — no Apple Developer
-account needed.
-
-1. Open <https://music.apple.com> and sign in
-2. Open DevTools → **Network** tab
-3. Play any song
-4. Filter for requests to `amp-api.music.apple.com`
-5. Open any `GET` request and copy from **Request Headers**:
-   - `authorization: Bearer eyJ...` → `APPLE_BEARER_TOKEN` (the `eyJ...` part,
-     without the `Bearer ` prefix)
-   - `media-user-token: ...` → `APPLE_USER_TOKEN` (full value)
-
-If either token expires (the bearer lasts months), the sync logs an auth error
-telling you to repeat these steps. Update `.env` — a running loop picks up the
-new values on its next pass (Docker needs a `docker compose restart`).
-
-## Run
-
-Default is a **dry run** — it prints every add/remove it *would* do and writes
-nothing:
-
-```bash
-uv run main.py
-```
-
-Apply for real:
-
-```bash
-uv run main.py --execute
+cp .env.example .env            # fill in credentials
+uv run main.py                  # dry run — prints every add/remove it *would* do
+uv run main.py --execute        # apply for real
 ```
 
 Useful flags:
@@ -231,382 +305,114 @@ Useful flags:
 uv run main.py --execute --playlists "Aurora,Chill"   # only these pairs
 uv run main.py --execute --loop --interval 15m        # run forever
 uv run main.py --execute --max-removals 100           # one-off larger cleanup
-uv run main.py --execute --max-adds 500               # one-off larger backfill
 ```
 
-First run opens a browser once for Spotify OAuth; the token is cached (default
-`.cache`) and auto-refreshes afterwards.
+Key env vars (see `.env.example`): `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET`, `APPLE_BEARER_TOKEN` / `APPLE_USER_TOKEN`, `PLAYLISTS`, `SYNC_INTERVAL`, `MAX_ADDS` / `MAX_REMOVALS`, `DOWNLOAD_DIR`, `SYNC_MODE=nway`, `PROVIDERS`.
 
-## Always running: Docker (recommended)
+<div align="right">
 
-The Docker container is the easiest way to run Omni Playlist Sync: it serves the
-web UI, runs your syncs on their schedules, and restarts with the host. It runs
-as **`omni-playlist-sync`** and persists all auth + caches in `./data`.
+[![][back-to-top]](#readme-top)
 
-```bash
-docker compose up -d --build     # build + start in the background
-# open http://<host>:8888 and connect your services + create syncs in the browser
-docker compose logs -f           # watch it work
-```
+</div>
 
-**No `.env` is needed to start** — everything is configured in the browser and
-saved under `./data`. Connect Spotify / YouTube Music with one-click OAuth (the
-wizard shows the exact redirect URI to whitelist), paste your Apple Music tokens,
-add a Jellyfin API key — all from the Accounts page — then build your syncs on the
-Sync page.
+## 🛡️ Safety rails
 
-- **Port** — the UI is published on host **8888** (the `8888:8080` mapping in
-  `docker-compose.yml`; change the host side if it clashes). **LAN-only** — don't
-  port-forward it to the internet; the UI has no login yet.
-- **Persistence** — `./data` holds credentials, tokens, caches, and the song
-  archive. Back it up to keep your setup across rebuilds.
-- **Downloads** — set `DOWNLOAD_DIR` (in `.env` or your shell) to your host music
-  dir (e.g. `F:\Torrent\Music`); compose bind-mounts it to `/music` in the
-  container. From Docker, set `JELLYFIN_URL` to `http://host.docker.internal:8096`.
-- **Expired Apple tokens** — re-paste them on the Accounts page; no restart needed.
+Removals are destructive, so they're guarded:
 
-## Always running: Windows Task Scheduler
+- **Dry run is the default** — nothing changes without `--execute` (or the UI's real-sync action).
+- If the source returns 0 tracks for a playlist the target shows as non-empty, removals are skipped that pass (a transient API failure can't empty a playlist).
+- More than `MAX_REMOVALS` pending removals in one pass → removals are skipped and logged.
+- More than `MAX_ADDS` pending additions → the rest continue next pass (giant one-burst backfills are what trip bot detection).
+- **Net-loss protection** — a target-side track resembling a source track that has no match on that service is held, not deleted.
+- Any Apple `401/403` aborts the pass immediately — no partial deletes on expired tokens.
 
-Alternative to Docker — one-shot pass every 15 minutes, survives reboots:
+<div align="right">
 
-```powershell
-schtasks /Create /TN "SpotifyPlaylistMirror" /SC MINUTE /MO 15 `
-  /TR "cmd /c cd /d D:\GitHub\omni-playlist-sync && uv run main.py --execute >> sync.log 2>&1"
-```
+[![][back-to-top]](#readme-top)
 
-Remove with `schtasks /Delete /TN "SpotifyPlaylistMirror" /F`.
+</div>
 
-Don't run the Docker container and the scheduled task at the same time — two
-mirrors racing each other can briefly duplicate adds.
+## 🗃️ Caching &amp; song archive
 
-## YouTube Music mirror (optional)
+Everything resolvable is cached so steady-state passes are near-instant: per-service resolve caches (ISRC + search, including misses), a `snapshot_id`-keyed track-list cache, hard identifier links in SQLite, and a per-pair snapshot-skip (`unchanged since last clean sync`).
 
-The same mirroring (same-name pairs, adds oldest-first, guarded removals,
-auto-create) runs against YouTube Music whenever its OAuth token is present — no
-token, and the step just logs a skip line. It talks to the **official
-[YouTube Data API v3](https://developers.google.com/youtube/v3)**, whose OAuth
-refresh token is durable and survives restarts unattended.
-
-One-time setup:
-
-1. In the [Google Cloud console](https://console.cloud.google.com), create a
-   project, enable the **YouTube Data API v3**, then create an OAuth client of
-   type **TVs and Limited Input devices**. Note its **client ID** and **secret**.
-2. On the **OAuth consent screen**, set **Publishing status → In production** and
-   add yourself as a test user. ⚠️ If you leave it in "Testing", Google expires
-   the refresh token after **7 days** — the exact trap OAuth is meant to avoid.
-3. Run the device flow and follow the printed code/URL (`uvx` runs it in a
-   throwaway env, immune to a stale project venv):
-
-   ```bash
-   uvx ytmusicapi oauth --file data/ytmusic_oauth.json \
-     --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
-   ```
-
-4. Put `YTMUSIC_OAUTH_CLIENT_ID` and `YTMUSIC_OAUTH_CLIENT_SECRET` in `.env`, and
-   point `YTMUSIC_AUTH_FILE` at the token file (default `ytmusic_oauth.json`).
-
-**Why the Data API, not ytmusicapi's internal endpoints?** `ytmusicapi`'s
-private `youtubei` API rejects self-made OAuth clients outright (`400 —
-INVALID_ARGUMENT`, a [known, unfixed issue](https://github.com/sigma67/ytmusicapi/issues/813)),
-and its browser-cookie auth is a static snapshot Google invalidates within ~a
-day. The public Data API accepts the OAuth token, shares YouTube's
-playlist/video namespace (writes show up in the YouTube Music app), and refreshes
-durably. `ytmusicapi` is still used, but only to refresh the OAuth token.
-
-Notes:
-
-- **Quota**: the Data API allows **10,000 units/day** (a search costs 100, an
-  add/remove 50, a read 1). Steady-state upkeep is cheap; a big first-time
-  backlog of *new* tracks can hit the cap and resume the next day.
-- **Fidelity**: YouTube has no ISRC, so matching is title/artist/duration and
-  resolution prefers `- Topic` art-tracks so tracks land as native songs. When
-  no art-track surfaces, a music video is used instead.
-- Only playlists owned by your account are edited; others are skipped.
-- For Docker, put the token file at `data/ytmusic_oauth.json` (or whatever
-  `YTMUSIC_AUTH_FILE` names).
-
-## Bidirectional (N-way) sync
-
-By default Spotify is the source of truth and edits flow one way. In **N-way
-mode** every provider is a peer: add or remove a track on Spotify, Apple Music,
-*or* YouTube Music and the change propagates to the others.
-
-Enable it in `.env`:
-
-```bash
-SYNC_MODE=nway
-PROVIDERS=spotify,apple,ytmusic   # which peers participate
-```
-
-**One-time cost — Spotify re-auth (CLI only).** N-way needs to *write* to
-Spotify. If you connected Spotify in the **web UI**, it already requested the
-`playlist-modify-*` scopes, so there's nothing to do. On the **CLI**, the default
-token is read-only; switching to N-way changes the scope, which invalidates the
-cached token — delete it (`data/spotify_token_cache`) and run a pass so the OAuth
-flow re-runs. Until you do, N-way writes to Spotify fail closed with a clear
-message.
-
-**Always dry-run first.** Run without `--execute` and read the plan — it prints
-every proposed add/remove on every provider before anything is written.
-
-### How it stays safe
-
-Bidirectional sync is impossible statelessly (you can't tell "added on A" from
-"removed on B" without memory), so each logical playlist's canonical membership
-is snapshotted after every clean pass. Each pass diffs every provider against
-that snapshot, unions the changes, and reconciles everyone to the result:
-
-- **Echo-free** — a propagated add becomes part of the snapshot, so it's never
-  re-seen as a new appearance and bounced back.
-- **Add-wins** on conflict — losing a song is worse than keeping an extra one.
-- **Read-collapse guard** — if a provider suddenly reads far fewer tracks than
-  the known baseline (a transient API hiccup), it's skipped that pass so one bad
-  read can't cascade a mass-delete.
-- **The same rails as one-way** — per-pass `MAX_ADDS` / `MAX_REMOVALS` caps and
-  net-loss (`protect_removals`) hold on every write side.
-
-### Cross-provider identity caveats
-
-Matching uses ISRC where it exists (Spotify + Apple) and falls back to
-title/artist/duration for YouTube (no ISRC). The fuzzy YouTube leg can
-occasionally **duplicate** a track it fails to recognize as already-present, but
-the guards mean it will **never wrongly delete** one. Big divergences converge
-over several passes (bounded by the Data API quota).
-
-## Local download mirror (optional)
-
-Keeps an offline audio copy of each synced Spotify playlist, one folder per
-playlist, via [spotDL](https://github.com/spotDL/spotify-downloader) (audio is
-matched from YouTube Music). Sync is true mirroring: new tracks are downloaded,
-tracks removed from the playlist are deleted locally. After each pass every
-file's *Date Modified* is set to the track's Spotify added-at date — sort the
-folder by Date Modified to get date-added order (newest last).
-
-Enable:
-
-```bash
-uv tool install spotdl   # isolated CLI; or: pipx install spotdl
-# ffmpeg required: winget install ffmpeg   (or: spotdl --download-ffmpeg)
-```
-
-Set `DOWNLOAD_DIR` in `.env` (e.g. `F:\Torrent\Music`) — runs as part of each
-`--execute` pass. In Docker it works out of the box: that host dir is
-bind-mounted to `/music` and used automatically (the image already includes
-spotdl and ffmpeg).
-
-The layout is Jellyfin-ready — point a Jellyfin music library at the download
-dir and both the tracks and the playlists appear, staying updated every pass:
-
-```text
-<DOWNLOAD_DIR>\
-  <Playlist>\
-    <Playlist>.m3u8          # auto-(re)generated; Jellyfin imports it as a
-    cover.jpg / folder.jpg   # the Spotify playlist cover, highest resolution
-    <AlbumArtist>\           # playlist named after the file, in Spotify order
-      <Album>\
-        Artists - Title.mp3  # tagged + cover art embedded
-```
-
-**Newest-first ordering.** The `.m3u8` is written by this tool (not spotDL) in
-Spotify **date-added order, newest at the top** — so Jellyfin shows your latest
-additions first, like Spotify. Set `LOCAL_MIRROR_ORDER=oldest` to flip it. Each
-file's mtime is also stamped to its added-at date (Date-Modified sort matches).
-It's regenerated at the end of each `--execute` pass, *after* that playlist's
-download finishes — so on a big first download it appears per-playlist as each
-completes. To rebuild the `.m3u8` / covers / mtimes immediately from files you
-already have, without downloading or syncing:
-
-```bash
-uv run main.py --refresh-local        # fast; no spotDL, no Apple/YT
-```
-
-**Resumable & incremental.** After the first full download, only the tracks
-you *newly added* are fetched — spotDL is handed just those tracks' URLs
-(`spotdl download`), so it skips the whole-playlist re-processing that `sync`
-does. Tracks you removed are deleted locally (their emptied album folders are
-pruned), already-downloaded files are skipped (`--overwrite skip`), and an
-interrupted run just continues next pass. The Spotify playlist cover is saved
-at the highest resolution Spotify offers and refreshed only when it changes.
-
-**spotDL is only invoked when it's actually needed.** Per-playlist state in
-`download_state.json` (Spotify `snapshot_id`, a track-id → file map, and the set
-of tracks spotDL couldn't source) drives it: an **unchanged** playlist is
-skipped outright; a **changed** one downloads only the genuinely **new** tracks
-(by URL) and deletes the **removed** ones — it does *not* re-run for
-permanently-unavailable tracks (OSTs / kanji titles / region-locked songs that
-aren't on YouTube), which are remembered after the first attempt. So steady
-state is fast: adding a song fetches just that song, not the whole playlist.
-(Use `--refresh-local` to force-rebuild the m3u/tags/covers without downloading.)
-
-**Metadata for Jellyfin.** spotDL embeds full Spotify tags + cover art on
-download. On top of that, finalize **backfills any missing** tags
-(title/artist/album/albumartist/ISRC) and cover art from Spotify — fixing the
-occasional poorly-tagged file (e.g. a YouTube-sourced one) without overwriting
-what spotDL wrote — and drops a `cover.jpg` in each album folder so Jellyfin
-always has album art. Set `LOCAL_MIRROR_TAG_BACKFILL=0` to disable.
-
-**Hard-to-find tracks.** spotDL falls back from YouTube Music to plain YouTube
-(`LOCAL_MIRROR_AUDIO_PROVIDERS`), which recovers most OSTs / instrumentals /
-indie tracks that aren't YT Music catalog songs. Some genuinely-unavailable
-tracks still log `no audio source` and are skipped.
-
-Optional env: `LOCAL_MIRROR_FORMAT` (mp3 default; changing it after the first
-run orphans old files), `LOCAL_MIRROR_TIMEOUT` (seconds per playlist per pass,
-default 3600), `LOCAL_MIRROR_ORDER` (newest/oldest),
-`LOCAL_MIRROR_AUDIO_PROVIDERS`, `LOCAL_MIRROR_VERBOSE=1` (echo all spotDL output).
-
-**Audio quality.** The source is YouTube, so without a logged-in YT Music
-**Premium** account the ceiling is ~128–160 kbps — no `--bitrate` can add
-quality the source lacks. For better results: `LOCAL_MIRROR_FORMAT=opus` keeps
-YouTube's native ~160 kbps stream without an mp3 re-encode; and for genuine
-256 kbps AAC, export a YT Music Premium cookie file (yt-dlp format) and set
-`LOCAL_MIRROR_COOKIE_FILE=/path/cookies.txt`. `LOCAL_MIRROR_BITRATE` (e.g.
-`320k`, or `disable` to copy the source) tunes the transcode.
-
-**Playlist covers in Jellyfin.** Jellyfin *ignores* any cover file next to an
-m3u playlist — it auto-tiles the tracks' embedded art. The only way to set a
-real playlist cover is Jellyfin's API, so this is opt-in: set `JELLYFIN_URL`
-and `JELLYFIN_API_KEY` (Jellyfin → Dashboard → API Keys) and each `--execute`
-pass uploads the Spotify cover onto the matching Jellyfin playlist. The
-playlist must already exist in Jellyfin (scanned from the m3u), so the flow is:
-sync → Jellyfin library scan → next sync sets covers. From Docker, point
-`JELLYFIN_URL` at `http://host.docker.internal:8096`.
-
-Download-mirror caveats:
-
-- **Private playlists fail** in spotDL's default auth — make mirrored playlists
-  public/unlisted, or do one interactive `spotdl --user-auth ...` run;
-  failures are logged per playlist and skipped.
-- First run is slow (~10–30 s per track, YouTube throttling); later passes only
-  touch deltas.
-- Occasional wrong match (live/cover version) is inherent to YouTube sourcing.
-- Renaming a playlist on Spotify starts a fresh folder; delete the old one
-  manually. Each folder's `.sync.spotdl` is spotDL's sync state — keep it.
-- Downloading audio this way is for personal use of content you have access
-  to; it sits outside Spotify's ToS — your call.
-
-## Caching & fast re-runs
-
-Everything resolvable is cached so steady-state passes are near-instant:
-
-- `apple_resolve_cache.json` / `ytmusic_resolve_cache.json` — ISRC and search
-  resolutions, including misses (delete a file to force fresh matching).
-- `spotify_tracks_cache.json` — each playlist's full track list keyed by
-  Spotify's `snapshot_id`, so an unchanged playlist isn't re-paginated every
-  pass. `snapshot_id` changes exactly when the playlist does, so there's no
-  staleness (unlike a time-based cache).
-- Apple requests reuse one pooled keep-alive connection per pass and back off
-  on resets/429s — the fix for `ConnectionReset` under a big playlist's many
-  calls.
-- `song_cache.db → links` — Spotify id → Apple catalog id / YT videoId for
-  every successful match. Hard identifiers beat title matching on later passes;
-  delete a row if a linked id ever goes stale.
-- `song_cache.db → sync_state` — after a fully clean `--execute` pass, each
-  pair's Spotify `snapshot_id` is stored; while it's unchanged the pair is
-  skipped entirely (logged as `unchanged since last clean sync`). Dry runs
-  never skip and never write state, so `uv run main.py` always shows the full
-  picture. Note: manual Apple-side edits on a skipped pair aren't corrected
-  until the Spotify playlist next changes (YT-side edits are caught via track
-  count).
-
-## Song metadata archive
-
-Every pass archives the metadata of every track it sees (all services) into
-`song_cache.db` — a SQLite file that only ever grows. Tracks removed from your
-playlists stay archived with name, artist, album, duration, ISRC, the full raw
-snapshot JSON, and first/last-seen timestamps. Inspect it with e.g.:
+Every pass also archives the metadata of every track it sees into `song_cache.db` — a SQLite file that only ever grows. Removed tracks stay archived with name, artist, album, duration, ISRC, raw snapshot JSON, and first/last-seen timestamps:
 
 ```bash
 sqlite3 song_cache.db "SELECT name, artist, album, first_seen FROM songs ORDER BY first_seen DESC LIMIT 20"
 ```
 
-## Safety rails
+<div align="right">
 
-Removals are destructive, so they're guarded:
+[![][back-to-top]](#readme-top)
 
-- **Dry run is the default** — nothing changes without `--execute`.
-- If Spotify returns 0 tracks for a playlist the target shows as non-empty,
-  removals are skipped that pass (a transient API failure can't empty a
-  playlist).
-- More than `MAX_REMOVALS` pending removals in one pass → removals are skipped
-  and logged; raise the cap deliberately if the change was intentional.
-- More than `MAX_ADDS` pending additions → the rest continue next pass
-  (giant one-burst backfills are what trip bot detection).
-- Fuzzy title/artist protection: a target-side track that plausibly matches a
-  Spotify track (metadata drift like `feat.` credits) is never removed.
-- Net-loss protection: a target-side track resembling a Spotify track that has
-  no match on that service is held (`~ held` in the log) — deleting it would
-  drop the song with no replacement.
-- Any Apple `401/403` aborts the pass immediately — no partial deletes on
-  expired tokens. YT `403/429` rate limits back off exponentially and resume.
+</div>
 
-## Caveats
+## 🧱 Project layout
 
-- Adding a catalog song to an Apple playlist may also add it to your Apple
-  Music library — that's an Apple account setting ("Add Playlist Songs to
-  Library"), not something the API controls.
-- Tracks with no match on a service are reported (`x Not on ...`) each pass
-  and otherwise skipped.
-- Playlist cover art isn't copied — neither Apple nor YT Music exposes artwork
-  upload; both auto-generate a mosaic cover from the tracks.
-
-## Project layout
-
-CLI entry: `uv run main.py` (thin shim) or `python -m omni_sync`. Web entry:
-`omni_sync.web:app`.
+CLI entry: `uv run main.py` (thin shim) or `python -m omni_sync`. Web entry: `omni_sync.web:app`.
 
 ```text
 omni_sync/
-  cli.py            # CLI entry: parse args, run once or loop
-  engine/           # provider-agnostic sync core (no web deps)
-    runner.py       # build targets, run each pass (one-way + N-way)
-    config.py       # constants, env, CLI options
-    spotify.py      # Spotify source (+ spotify_web.py web-player fallback read)
-    matching.py     # normalize / romanize / score / diff / removal guards
-    archive.py      # SQLite: song archive + id links + snapshot state
-    downloads.py    # spotDL local mirror + covers
-    jellyfin.py     # browse playlists + push covers
-    targets/        # one MirrorTarget per writable service
-      base.py       # MirrorTarget interface + shared mirror_pair / reconcile
-      apple.py      # Apple Music (amp-api)
-      ytmusic.py    # YouTube Music (YouTube Data API v3)
-      spotify_target.py   # Spotify as a writable peer (N-way)
-  services/         # stateful app services over the engine
-    accounts/       # per-service connectors (OAuth / token paste / api key)
-    settings.py     # managed env store (wizard-saved config)
-    syncs.py        # multiple named sync configs
-    sync_service.py # per-job schedulers, single-writer lock
-    transfers.py    # one-off cross-service copies (+ pause/resume/stop)
-    playlists.py    # browse + explicit cross-service pairing
-    events.py       # in-process event bus for the live feed
-  web/              # FastAPI app: thin HTTP/SSE over services/ (never the engine)
-    routers/        # accounts, syncs, sync, transfers, playlists, settings, events
+  engine/       # provider-agnostic sync core (no web deps): runner, matching, targets/, spotify, downloads, archive
+  services/     # stateful services over the engine: accounts/ connectors, syncs, sync_service, transfers, playlists, settings
+  web/          # FastAPI app: thin HTTP/SSE over services/ (routers/)
+frontend/       # React + Vite SPA (built and served by the API in production)
 ```
 
-**Adding a service** (Tidal, Deezer, ...): subclass `MirrorTarget`, implement
-~8 methods (`list_playlists`, `playlist_tracks`, `track_id`, `resolve`, `add`,
-`remove`, `create`, `is_editable`), add its builder to `engine/targets`'
-`_REGISTRY`, and add a matching `Connector` under `services/accounts` so the
-wizard can connect it. All the reconciliation — diff, ordering, safety rails,
-logging, stats, snapshot-skip — is inherited from `base.mirror_pair`.
+**Adding a service** (Tidal, Deezer, …): subclass `MirrorTarget`, implement ~8 methods, add its builder to `engine/targets`' `_REGISTRY`, and add a matching `Connector` under `services/accounts`. All reconciliation — diff, ordering, safety rails, logging, snapshot-skip — is inherited.
 
-## Self-check
+<div align="right">
 
-```bash
-uv run pytest          # full test suite (in tests/)
-```
+[![][back-to-top]](#readme-top)
 
-## Troubleshooting
+</div>
 
-- `Missing required environment variable: ...` — fill in `.env`
-- `Apple rejected ... (401/403)` — re-capture the two Apple tokens
-- `YT Music mirror unavailable` — re-run the `ytmusicapi browser` setup
-- Spotify OAuth redirect mismatch — the dashboard redirect URI must exactly
-  match `SPOTIFY_REDIRECT_URI`
-- A playlist isn't syncing — confirm it's included in `PLAYLISTS` and exists
-  on Spotify (targets are auto-created on `--execute`)
+## 🩺 Troubleshooting
 
-## License
+- **`Missing required environment variable`** — fill in `.env` (CLI) or connect the service in the UI.
+- **`Apple rejected … (401/403)`** — re-capture the two Apple tokens (they expire).
+- **Spotify OAuth redirect mismatch** — the redirect URI in your Spotify app must exactly match the one the wizard shows (including the port).
+- **A playlist isn't syncing** — confirm it's in the sync's playlist scope and exists on the source (targets are auto-created on a real pass).
 
-[MIT](LICENSE)
+<div align="right">
+
+[![][back-to-top]](#readme-top)
+
+</div>
+
+## ⭐ Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ahnafnafee/omni-playlist-sync&type=Date)](https://star-history.com/#ahnafnafee/omni-playlist-sync&Date)
+
+## 📄 License
+
+Copyright © 2026 [Ahnaf An Nafee](https://github.com/ahnafnafee).<br/>
+This project is [MIT](./LICENSE) licensed.
+
+<!-- LINK GROUP -->
+
+[back-to-top]: https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square
+[ci-shield]: https://img.shields.io/github/actions/workflow/status/ahnafnafee/omni-playlist-sync/ci.yml?branch=main&label=CI&labelColor=black&logo=githubactions&logoColor=white&style=flat-square
+[ci-link]: https://github.com/ahnafnafee/omni-playlist-sync/actions/workflows/ci.yml
+[license-shield]: https://img.shields.io/github/license/ahnafnafee/omni-playlist-sync?color=F2601A&labelColor=black&style=flat-square
+[license-link]: https://github.com/ahnafnafee/omni-playlist-sync/blob/main/LICENSE
+[python-shield]: https://img.shields.io/badge/python-3.13%2B-F2601A?labelColor=black&logo=python&logoColor=white&style=flat-square
+[python-link]: https://www.python.org/
+[docker-shield]: https://img.shields.io/badge/docker-ready-F2601A?labelColor=black&logo=docker&logoColor=white&style=flat-square
+[docker-link]: https://github.com/ahnafnafee/omni-playlist-sync/blob/main/docker-compose.yml
+[stars-shield]: https://img.shields.io/github/stars/ahnafnafee/omni-playlist-sync?color=F2601A&labelColor=black&logo=github&logoColor=white&style=flat-square
+[stars-link]: https://github.com/ahnafnafee/omni-playlist-sync/stargazers
+[forks-shield]: https://img.shields.io/github/forks/ahnafnafee/omni-playlist-sync?color=F2601A&labelColor=black&logo=github&logoColor=white&style=flat-square
+[forks-link]: https://github.com/ahnafnafee/omni-playlist-sync/network/members
+[issues-shield]: https://img.shields.io/github/issues/ahnafnafee/omni-playlist-sync?color=F2601A&labelColor=black&logo=github&logoColor=white&style=flat-square
+[issues-link]: https://github.com/ahnafnafee/omni-playlist-sync/issues
+[last-commit-shield]: https://img.shields.io/github/last-commit/ahnafnafee/omni-playlist-sync?color=F2601A&labelColor=black&logo=github&logoColor=white&style=flat-square
+[last-commit-link]: https://github.com/ahnafnafee/omni-playlist-sync/commits/main
+[github-issues-link]: https://github.com/ahnafnafee/omni-playlist-sync/issues
+[share-x-shield]: https://img.shields.io/badge/-share%20on%20x-black?labelColor=black&logo=x&logoColor=white&style=flat-square
+[share-x-link]: https://x.com/intent/tweet?text=Omni%20Playlist%20Sync%20%E2%80%94%20self-hosted%20playlist%20sync%20for%20Spotify%2C%20Apple%20Music%20%26%20YouTube%20Music&url=https%3A%2F%2Fgithub.com%2Fahnafnafee%2Fomni-playlist-sync
+[share-reddit-shield]: https://img.shields.io/badge/-share%20on%20reddit-black?labelColor=black&logo=reddit&logoColor=white&style=flat-square
+[share-reddit-link]: https://www.reddit.com/submit?title=Omni%20Playlist%20Sync%20%E2%80%94%20self-hosted%20playlist%20sync%20across%20Spotify%2C%20Apple%20Music%20%26%20YouTube%20Music&url=https%3A%2F%2Fgithub.com%2Fahnafnafee%2Fomni-playlist-sync
+[share-linkedin-shield]: https://img.shields.io/badge/-share%20on%20linkedin-black?labelColor=black&logo=linkedin&logoColor=white&style=flat-square
+[share-linkedin-link]: https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fgithub.com%2Fahnafnafee%2Fomni-playlist-sync
