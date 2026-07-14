@@ -25,6 +25,12 @@ services:
       DOWNLOAD_STATE_FILE: /data/download_state.json
       YTMUSIC_AUTH_FILE: /data/ytmusic_oauth.json   # YouTube Data API v3 OAuth refresh token
       YTMUSIC_CACHE_FILE: /data/ytmusic_resolve_cache.json
+      # Opt-in no-quota (youtubei) backend: drop a ytmusicapi browser-auth file
+      # here and set YTMUSIC_PREFER_BROWSER=1 (Settings) to route YT reads/writes
+      # through it instead of the quota-capped Data API — the fix for large
+      # backfills. Cookies rotate, so re-export periodically. Unset/absent file =
+      # durable OAuth Data API (the default).
+      YTMUSIC_BROWSER_AUTH: /data/ytmusic_browser.json
       SPOTIFY_CACHE_FILE: /data/spotify_resolve_cache.json   # N-way Spotify search cache
       SPOTIFY_OAUTH_OPEN_BROWSER: "0"
       # Container-internal download path (the host music dir is bind-mounted to
