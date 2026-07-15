@@ -1,5 +1,10 @@
 <div align="center"><a name="readme-top"></a>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./.github/assets/lockup-dark.png">
+  <img src="./.github/assets/lockup-light.png" alt="SongMirror" width="440">
+</picture>
+
 # SongMirror
 
 Self-hosted, always-on **playlist sync for Spotify, Apple Music, and YouTube Music** — plus a local, Jellyfin-ready audio mirror.<br/>
