@@ -62,7 +62,7 @@ def scan(peers, playlists, caches, songs, state_key):
         for cid, norm in ec:
             if cid.startswith("i:"):
                 key2isrc.setdefault(track_key(norm["name"], norm["artist"]), cid[2:])
-    alias = _unify_aliases(canon)
+    alias = _unify_aliases(per_entry)  # every copy's keys, not just the first per identity
     entries = {}
     for p in peers:
         src = p.source
