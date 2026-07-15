@@ -335,6 +335,38 @@ def test_alias_flip_never_removes_the_real_track(tmp_path):
     conn.close()
 
 
+def test_unify_uses_every_copys_keys_not_just_the_first():
+    # Live-data shape (chai & chill): one identity, two Spotify releases — the
+    # decorated title sits FIRST in playlist order. The junk YT copy matches
+    # only the plain second copy's keys; unification must consider every
+    # entry's keys, not just the first copy folded into canon.
+    from omni_sync.engine.matching import track_key
+    from omni_sync.engine.targets.base import _normalize, _unify_aliases
+
+    dec = _normalize({"name": 'Kuch To Hai (From "Do Lafzon Ki Kahani")',
+                      "artists": ["Armaan Malik"], "isrc": "I1"}, "spotify")
+    plain = _normalize({"name": "Kuch To Hai",
+                        "artists": ["Armaan Malik", "Amaal Mallik", "Manoj Muntashir"],
+                        "isrc": "I1"}, "spotify")
+    junk = _normalize({"name": "KUCH TO HAI", "artists": ["ARMAAN MALIK", "AMAAL MALLIK"]}, "ytmusic")
+    kid = f"k:{track_key('KUCH TO HAI', 'ARMAAN MALIK, AMAAL MALLIK')}"
+    alias = _unify_aliases({"spotify": [("i:I1", dec), ("i:I1", plain)], "ytmusic": [(kid, junk)]})
+    assert alias == {kid: "i:I1"}
+
+
+def test_unify_folds_ver_abbreviation_into_version():
+    # "Twin Ver." vs "Twin Version" — the same release string abbreviated;
+    # token-set matching can't bridge ver/version, so loose_name normalizes it.
+    from omni_sync.engine.matching import track_key
+    from omni_sync.engine.targets.base import _normalize, _unify_aliases
+
+    sp = _normalize({"name": "Cupid - Twin Ver.", "artists": ["FIFTY FIFTY"], "isrc": "K1"}, "spotify")
+    ap = _normalize({"name": "Cupid (Twin Version)", "artist": "FIFTY FIFTY"}, "apple")
+    kid = f"k:{track_key('Cupid (Twin Version)', 'FIFTY FIFTY')}"
+    alias = _unify_aliases({"spotify": {"i:K1": sp}, "apple": {kid: ap}})
+    assert alias == {kid: "i:K1"}
+
+
 def test_unify_never_merges_different_songs():
     # Same title, different artists (a cover on a label channel) must stay two
     # canonical identities — unification is for provider-flavored metadata of

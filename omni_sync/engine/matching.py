@@ -37,8 +37,10 @@ def normalize_text(value):
 def loose_name(name):
     """Title with feat-clauses stripped — '(feat. X)' is the classic drift for
     the SAME song. Version qualifiers like (Live)/(Acoustic) are kept: those
-    are different recordings."""
+    are different recordings — but the abbreviation 'ver' expands to 'version'
+    so 'Twin Ver.' and 'Twin Version' agree token-for-token."""
     cleaned = TRAILING_FEAT_RE.sub("", normalize_text(PAREN_FEAT_RE.sub(" ", name or ""))).strip()
+    cleaned = re.sub(r"\bver\b", "version", cleaned)
     return cleaned or normalize_text(name)
 
 

@@ -316,10 +316,16 @@ def _unify_aliases(canon):
     as a duplicate each pass — and a flip between aliases reads as a user
     deletion. Matching: any exact spotify_track_keys overlap, else the same
     composite-key fuzzy tolerance the one-way removal guard trusts. Hard ids
-    never merge with each other — two ISRCs are two recordings."""
+    never merge with each other — two ISRCs are two recordings.
+
+    `canon` values may be {cid: norm} dicts OR per-entry (cid, norm) sequences.
+    Per-entry is strictly better: one identity often spans several releases with
+    DIFFERENT titles ("Song" + "Song (From ...)"), and an alias may match only
+    the copy a dict fold would have dropped."""
     keysets = {}
     for by_cid in canon.values():
-        for cid, norm in by_cid.items():
+        pairs = by_cid.items() if hasattr(by_cid, "items") else by_cid
+        for cid, norm in pairs:
             keysets.setdefault(cid, set()).update(spotify_track_keys(norm))
     soft = sorted(cid for cid in keysets if cid.startswith("k:"))
     if not soft:
@@ -394,6 +400,7 @@ def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, m
     prev = {p.source: archive.get_playlist_state(songs, key, p.source) for p in peers}
 
     canon = {}         # source -> {canonical_id: normalized track}
+    per_entry = {}     # source -> [(canonical_id, norm)] for EVERY physical entry
     present = {}       # source -> set of ALL current target ids (not canonical-deduped)
     key2isrc = {}      # track_key -> ISRC, seeded by any ISRC-bearing provider (peers are ISRC-rich first)
     for p in peers:
@@ -403,15 +410,21 @@ def reconcile(peers, name, playlists, caches, songs, *, execute, max_removals, m
                              [[p.track_id(t), t.get("name", ""),
                                t.get("artist") or ", ".join(t.get("artists") or [])] for t in raw])
         present[p.source] = {p.track_id(t) for t in raw if p.track_id(t)}
-        canon[p.source] = _canonicalize(p, raw, songs, caches[p.source], key2isrc)
-        for cid, norm in canon[p.source].items():
+        per_entry[p.source] = _entry_cids(p, raw, songs, caches[p.source], key2isrc)
+        fold = {}
+        for cid, norm in per_entry[p.source]:
+            fold.setdefault(cid, norm)  # first occurrence wins (dedupe within a provider)
+        canon[p.source] = fold
+        for cid, norm in per_entry[p.source]:
             if cid.startswith("i:"):  # any provider that resolved an ISRC anchors the rest
                 key2isrc.setdefault(track_key(norm["name"], norm["artist"]), cid[2:])
 
     # One identity per song: fold provider-flavored aliases together BEFORE any
     # membership math, and map the stored baseline through the same table so a
-    # retired alias is never mistaken for a deletion.
-    alias = _unify_aliases(canon)
+    # retired alias is never mistaken for a deletion. Unification sees every
+    # PHYSICAL entry's keys — an identity spanning differently-titled releases
+    # must expose all of their names for aliases to land on.
+    alias = _unify_aliases(per_entry)
     if alias:
         for src, by_cid in canon.items():
             merged = {}
