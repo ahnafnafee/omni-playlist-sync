@@ -33,7 +33,7 @@ A free, open-source, **self-hosted alternative to Soundiiz, TuneMyMusic, and Fre
 
 <sup>Set it up once — every playlist you curate stays mirrored across every service, in date-added order.</sup>
 
-<a href="./.github/assets/songmirror-demo.mp4"><img src="./.github/assets/songmirror-demo.gif" alt="SongMirror demo — logo reveal, dashboard, one-way and bidirectional sync setup, live playlist transfers, and ISRC-accurate matching across Spotify, Apple Music, and YouTube Music" width="88%"></a>
+<a href="./.github/assets/songmirror-demo.mp4"><img src="./.github/assets/songmirror-demo.gif" alt="SongMirror demo — logo reveal, dashboard, playlist browsing across Spotify, Apple Music, YouTube Music, and Jellyfin, and the sync setup wizard" width="88%"></a>
 
 <sup>▶ <a href="./.github/assets/songmirror-demo.mp4">Watch the 1080p version</a></sup>
 
